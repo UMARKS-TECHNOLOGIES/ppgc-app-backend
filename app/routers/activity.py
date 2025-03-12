@@ -4,41 +4,43 @@ from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, Depends, status, HTTPException
 
-from property_street_backend.app.database import get_db
-from property_street_backend.config.settings import (
-    NEWLY_CREATED_ASSET_TTL
+from ppgc_backend.app.database import get_db
+from ppgc_backend.config.settings import (
+    NEWLY_CREATED_ASSET_TTL,
+    DEBUG
 )
-from property_street_backend.app.controllers.auth import (
+from ppgc_backend.app.controllers.auth import (
     decode_user_from_token,
     decode_user_from_token_optional,
 )
-from property_street_backend.app.initiator import redis_client
-from property_street_backend.app.schemas.auth_schemas import (
+from ppgc_backend.app.initiator import redis_client
+from ppgc_backend.app.schemas.auth_schemas import (
     TokenData, 
 )
-from property_street_backend.app.models import (
+from ppgc_backend.app.models import (
     Asset, 
 )
-from property_street_backend.app.schemas.asset_schemas import (
+from ppgc_backend.app.schemas.asset_schemas import (
     LatestAssetsFetchResponseSchema,
     AssetFetchByIdResponseSchema 
 )
-from property_street_backend.app.controllers.activity.agent_crud_processing import (
+from ppgc_backend.app.controllers.activity.agent_crud_processing import (
     process_asset as controller_process_asset,
     remove_tags_from_asset,
 )
-from property_street_backend.app.controllers.activity.agent_assets_retrieval import (
+from ppgc_backend.app.controllers.activity.agent_assets_retrieval import (
     get_agent_assets
 )
-from property_street_backend.log_config.logger_config import (
+from ppgc_backend.log_config.logger_config import (
     log_message
 )
+from ppgc_backend.app.controllers.settings.user_update import user_record_update
 
 
 
 router = APIRouter(prefix="/activity", tags=["activity"])
 
-@router.post("/process_asset", status_code=status.HTTP_200_OK)
+@router.post("/process-asset", status_code=status.HTTP_200_OK)
 async def process_asset(
     data: Dict, 
     db: AsyncSession = Depends(get_db),
@@ -234,3 +236,32 @@ async def fetch_asset_by_id(
             detail="An unexpected error occurred. Please try again later."
         )
         
+    
+@router.post("/update-profile-thumbnail", status_code=status.HTTP_200_OK)
+async def user_profile_thumbnail_update(
+    data: Dict, 
+    db: AsyncSession = Depends(get_db),
+    _: TokenData = Depends(decode_user_from_token)
+):
+    try:
+        await user_record_update(
+            data_to_be_processed=data,
+            db = db,
+        )
+        # log a success message
+        if DEBUG:
+            log_message(
+                log_type='success',
+                message=f'user profile thumbnail successfully updated'
+            )
+    except Exception as e:
+        # log the error
+        if DEBUG:
+            log_message(
+                log_type='error',
+                message=f'An error occured while updating user profile thumbnail. Reason: {e}'
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occured on updating user profile thumbnail"
+        )

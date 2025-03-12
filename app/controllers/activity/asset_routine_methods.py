@@ -2,13 +2,13 @@ import json
 import asyncio
 import redis.asyncio as redis
 
-from property_street_backend.log_config.logger_config import (
+from ppgc_backend.log_config.logger_config import (
     log_message
 )
-from property_street_backend.config.settings import (
+from ppgc_backend.config.settings import (
     DEBUG,
 )
-from property_street_backend.app.controllers.activity.auto_category_util_methods import (
+from ppgc_backend.app.controllers.activity.auto_category_util_methods import (
     handle_newly_created_asset_expiry,
     handle_recent_set_expiry,
 )

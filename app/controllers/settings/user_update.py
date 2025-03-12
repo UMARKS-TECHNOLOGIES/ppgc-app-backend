@@ -3,14 +3,14 @@ from typing import Dict
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from property_street_backend.app.controllers.utils import (
+from ppgc_backend.app.controllers.utils import (
     create_or_update_object,
     return_model_from_string,
 )
-from property_street_backend.log_config.logger_config import (
+from ppgc_backend.log_config.logger_config import (
     log_message
 )
-from property_street_backend.app.controllers.auth import get_password_hash
+from ppgc_backend.app.controllers.auth import get_password_hash
 
 
 async def user_record_update(

@@ -14,24 +14,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
 
 
-from property_street_backend.app.database import (
+from ppgc_backend.app.database import (
     get_db,
 )
-from property_street_backend.app.routers import (
+from ppgc_backend.app.routers import (
     auth, 
     activity,
     search,
     settings
 )
-from property_street_backend.app.initiator import (
+from ppgc_backend.app.initiator import (
     app, 
     redis_client
 )
-from property_street_backend.config.settings import (
+from ppgc_backend.config.settings import (
     environment,
     CORS_ORIGINS
 )
-from property_street_backend.app.controllers.activity.asset_routine_methods import (
+from ppgc_backend.app.controllers.activity.asset_routine_methods import (
     asset_auto_category_expiry
 )
 

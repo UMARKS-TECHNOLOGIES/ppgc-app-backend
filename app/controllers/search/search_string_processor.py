@@ -4,12 +4,12 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from property_street_backend.app.models import (
+from ppgc_backend.app.models import (
     Tag,
     Asset,
 )
-from property_street_backend.app.schemas.asset_schemas import LatestAssetsFetchResponseSchema
-from property_street_backend.app.schemas.asset_schemas import (
+from ppgc_backend.app.schemas.asset_schemas import LatestAssetsFetchResponseSchema
+from ppgc_backend.app.schemas.asset_schemas import (
     AssetSchema
 )
 

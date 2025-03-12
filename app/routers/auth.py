@@ -2,18 +2,18 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 import redis.asyncio as redis
 
-from property_street_backend.app.initiator import redis_client
-from property_street_backend.app.database import get_db
-from property_street_backend.app.schemas.auth_schemas import (
+from ppgc_backend.app.initiator import redis_client
+from ppgc_backend.app.database import get_db
+from ppgc_backend.app.schemas.auth_schemas import (
     UserRegistrationSchema, 
     UserSigninSchema, 
-    Token, 
+    SigninResponse, 
     TokenData, 
     ProbeUserExistenceSchema,
     SendEmailCodeSchema,
     SignupCodeVerificationSchema,
 )
-from property_street_backend.app.controllers.auth import (
+from ppgc_backend.app.controllers.auth import (
     create_user, 
     authenticate_user, 
     decode_user_from_token, 
@@ -22,7 +22,7 @@ from property_street_backend.app.controllers.auth import (
     send_email_verification_code as controller_send_email_verification_code,
     confirm_email_verification_code_and_sign_user_up as controller_confirm_email_verification_code_and_sign_user_up
 )
-from property_street_backend.app.utils.store import (
+from ppgc_backend.app.utils.store import (
     email_verification_code_ttl,
 )
 
@@ -73,7 +73,7 @@ async def confirm_email_verification_code(
 
 
 # signin endpoint
-@router.post("/signin", response_model=Token, status_code=status.HTTP_200_OK)
+@router.post("/signin", response_model=SigninResponse, status_code=status.HTTP_200_OK)
 async def signin_for_access_token(user_data: UserSigninSchema, db: AsyncSession = Depends(get_db)):
     user = await authenticate_user(
         db = db, 
@@ -86,7 +86,10 @@ async def signin_for_access_token(user_data: UserSigninSchema, db: AsyncSession 
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return fetched_access_token(user)
+    return {
+        **fetched_access_token(user),
+        "user_id":user.id, 
+    }
 
 
 @router.get("/retrieve-client-details")

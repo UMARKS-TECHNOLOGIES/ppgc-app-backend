@@ -7,18 +7,18 @@ import redis.asyncio as redis
 from typing import Optional, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from property_street_backend.config.settings import (
+from ppgc_backend.config.settings import (
     SEARCH_UNIT_TTL
 )
-from property_street_backend.app.database import get_db
-from property_street_backend.app.controllers.auth import (
+from ppgc_backend.app.database import get_db
+from ppgc_backend.app.controllers.auth import (
     decode_user_from_token_optional,
 )
-from property_street_backend.app.initiator import redis_client
-from property_street_backend.app.controllers.search.search_string_processor import (
+from ppgc_backend.app.initiator import redis_client
+from ppgc_backend.app.controllers.search.search_string_processor import (
     process_search_entries,
 )
-from property_street_backend.app.schemas.auth_schemas import (
+from ppgc_backend.app.schemas.auth_schemas import (
     TokenData, 
 )
 

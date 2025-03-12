@@ -22,12 +22,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.declarative import declared_attr
 
 
-from property_street_backend.app.enums import (
+from ppgc_backend.app.enums import (
     EmailManagementReasonChoice,
     ClientTypeChoice,
     AssetCategoryChoice,
 )
-from property_street_backend.app.database import Base
+from ppgc_backend.app.database import Base
 
 
 # abstract class dependency for models with cloud images fields

@@ -9,23 +9,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, APIRouter, HTTPException, status, Depends
 
-from property_street_backend.app.models import (
+from ppgc_backend.app.models import (
     User,
 )
-from property_street_backend.app.schemas.auth_schemas import (
+from ppgc_backend.app.schemas.auth_schemas import (
     UserRegistrationSchema, 
     TokenData, 
     ProbeUserExistenceSchema,
     SendEmailCodeSchema,
     SignupCodeVerificationSchema
 )
-from property_street_backend.app.utils.store import (
+from ppgc_backend.app.utils.store import (
     read_email_from_html_template_name,
     substituted_string,
     send_email,
 )
-from property_street_backend.config.settings import JWT_SECRET_KEY, JWT_EXPIRATION_DELTA, JWT_ALGORITHM
-from property_street_backend.app.database import get_db
+from ppgc_backend.config.settings import JWT_SECRET_KEY, JWT_EXPIRATION_DELTA, JWT_ALGORITHM
+from ppgc_backend.app.database import get_db
 
 
 import logging

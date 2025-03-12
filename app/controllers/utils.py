@@ -2,7 +2,7 @@ from sqlalchemy import inspect
 from typing import Type, Dict, Any
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from property_street_backend.app.models import (
+from ppgc_backend.app.models import (
     Tag, 
     User,
     Asset, 

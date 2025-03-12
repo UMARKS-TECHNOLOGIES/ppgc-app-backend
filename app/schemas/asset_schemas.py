@@ -6,7 +6,7 @@ from pydantic import (
     model_validator
 )
 from typing import Optional
-from property_street_backend.app.enums import AssetCategoryChoice
+from ppgc_backend.app.enums import AssetCategoryChoice
 
 
 

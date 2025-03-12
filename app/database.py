@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-from property_street_backend.config.settings import DATABASE_URL
+from ppgc_backend.config.settings import DATABASE_URL
 
 # Async SQLAlchemy engine
 async_engine = create_async_engine(DATABASE_URL, echo=False)

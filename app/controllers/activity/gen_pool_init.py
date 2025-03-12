@@ -10,15 +10,15 @@ from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-from property_street_backend.app.models import (
+from ppgc_backend.app.models import (
     User,
     Thread,
     Message,
 )
-from property_street_backend.config.settings import (
+from ppgc_backend.config.settings import (
     DEBUG
 )
-from property_street_backend.log_config.logger_config import (
+from ppgc_backend.log_config.logger_config import (
     log_message
 )
 websocket_logger = logging.getLogger("websocket")

@@ -8,26 +8,26 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-from property_street_backend.app.schemas.asset_schemas import (
+from ppgc_backend.app.schemas.asset_schemas import (
     AssetSchema
 )
-from property_street_backend.app.models import (
+from ppgc_backend.app.models import (
     Asset, 
     Agent,
     asset_tag_association,
 )
-from property_street_backend.config.settings import (
+from ppgc_backend.config.settings import (
     DEBUG
 )
-from property_street_backend.app.controllers.utils import (
+from ppgc_backend.app.controllers.utils import (
     return_model_from_string,
     handle_instance_delete,
     create_or_update_object,
 )
-from property_street_backend.log_config.logger_config import (
+from ppgc_backend.log_config.logger_config import (
     log_message
 )
-from property_street_backend.app.controllers.activity.asset_routine_methods import (
+from ppgc_backend.app.controllers.activity.asset_routine_methods import (
     create_or_update_newly_created_asset_cache
 )
 

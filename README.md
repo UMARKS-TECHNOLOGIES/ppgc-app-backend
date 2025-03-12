@@ -1,5 +1,9 @@
-# Property Street Backend
+# PPGC fastapi Backend
 
+## push to crank-branch
+```bash
+git push -u origin crank-branch
+```
 
 ## Starting the development server
 ```

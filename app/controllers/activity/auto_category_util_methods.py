@@ -1,6 +1,6 @@
 import json
 import redis.asyncio as redis
-from property_street_backend.log_config.logger_config import log_message
+from ppgc_backend.log_config.logger_config import log_message
 
 
 async def handle_newly_created_asset_expiry(

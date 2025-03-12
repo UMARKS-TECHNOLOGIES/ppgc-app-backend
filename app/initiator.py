@@ -2,7 +2,7 @@ from fastapi import FastAPI
 import logging
 import redis.asyncio as redis
 
-from property_street_backend.config.settings import (
+from ppgc_backend.config.settings import (
     environment,
     REDIS_CACHE_DB,
 )

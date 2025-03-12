@@ -3,12 +3,12 @@ from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from property_street_backend.app.models import (
+from ppgc_backend.app.models import (
     Agent,
     Asset,
     AssetFeature,
 )
-from property_street_backend.log_config.logger_config import (
+from ppgc_backend.log_config.logger_config import (
     log_message
 )
 
