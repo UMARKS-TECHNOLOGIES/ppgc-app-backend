@@ -5,14 +5,13 @@ from httpx import AsyncClient, ASGITransport
 from pystyle import Colors
 import redis.asyncio as redis
 
-from property_street_backend.app.database import Base, get_db
-from property_street_backend.app.initiator import redis_client
-from property_street_backend.app.main import app
-from property_street_backend.config.settings import (
+from ppgc_backend.app.database import Base, get_db
+from ppgc_backend.app.initiator import redis_client
+from ppgc_backend.app.main import app
+from ppgc_backend.config.settings import (
     TEST_DATABASE_URL, 
     REDIS_CACHE_DB,
 )
-from property_street_backend.app.utils.store import email_verification_code_ttl
 
 # Async SQLAlchemy engine and session for testing
 # async_engine: An asynchronous SQLAlchemy engine created using create_async_engine for the test database.

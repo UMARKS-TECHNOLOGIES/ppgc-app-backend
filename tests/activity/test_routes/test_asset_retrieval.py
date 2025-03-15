@@ -29,7 +29,6 @@ async def test_fetch_latest_assets(client__fixture):
     print(type(client__fixture))
     fixture_product = await client__fixture.__anext__()
     print(f"fixture_product_type: {type(fixture_product)}")
-    return
 
     # Common cloud image details
     test_cloud_details = {

@@ -3,7 +3,7 @@ import asyncio
 import redis.asyncio as redis
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from property_street_backend.app.main import app
+from ppgc_backend.app.main import app
 
 @pytest.mark.asyncio
 async def test_db_connectivity(
@@ -91,9 +91,3 @@ async def test_prod_redis_connectivity(prod_redis_client__fixture):
 @app.get("/pseudo-url")
 async def pseudo_url():
     return {"message": "This is a pseudo endpoint"}
-
-if __name__ == "__main__":
-    @pytest.mark.asyncio
-    async def ct(prod_redis_client_fixture):
-        print(type(prod_redis_client_fixture))
-    asyncio.run(ct)

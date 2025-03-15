@@ -21,7 +21,8 @@ from ppgc_backend.app.routers import (
     auth, 
     activity,
     search,
-    settings
+    settings,
+    roi,
 )
 from ppgc_backend.app.initiator import (
     app, 
@@ -110,4 +111,5 @@ app.include_router(auth.router)
 app.include_router(activity.router)
 app.include_router(search.router)
 app.include_router(settings.router)
+app.include_router(roi.router)
 app.include_router(home_router)

@@ -77,6 +77,6 @@ docker exec -it <db_container> \
 ```
 
 ## build image to docker hub repo
-docker build -t crankgig/property_street_docker_hub_fastapi_repo:latest .
+docker build -t crankgig/<docker_hub_rep> .
 ### push the image to docker hub
-docker push crankgig/property_street_docker_hub_fastapi_repo:latest
+docker push crankgig/<docker_hub_rep>
