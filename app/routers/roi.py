@@ -8,13 +8,12 @@ from ppgc_backend.app.controllers.auth import (
 from ppgc_backend.app.schemas.auth_schemas import (
     TokenData, 
 )
-from ppgc_backend.app.schemas.roi_schemas import InvestmentCreate, InvestmentResponse, DepositRequest, WithdrawRequest
-from ppgc_backend.app.controllers.roi import (
-    create_investment, 
-    deposit_funds, 
+from ppgc_backend.app.controllers.investments.schemas import InvestmentDeposit, InvestmentResponse, DepositRequest, WithdrawRequest
+from ppgc_backend.app.controllers.investments.roi import (
     withdraw_funds,
     get_user_investment,
     get_user_investments, 
+    deposit_funds_and_create_investment, 
 )
 
 
@@ -24,15 +23,14 @@ router = APIRouter(prefix="/roi", tags=["roi"])
 # Create investment
 @router.post("/create-investment", response_model=InvestmentResponse)
 async def create_new_investment(
-    investment: InvestmentCreate, 
+    investment: InvestmentDeposit, 
     db: AsyncSession = Depends(get_db),
     current_user: TokenData = Depends(decode_user_from_token)
 ):
-    return await create_investment(
+    return await deposit_funds_and_create_investment(
         db, 
         current_user.id, 
-        float(investment.investment_amount),
-        float(investment.interest_rate)
+        investment.model_dump()
     )
 
 
@@ -53,21 +51,6 @@ async def get_investments(
     current_user: TokenData = Depends(decode_user_from_token)
 ):
     return await get_user_investments(db, current_user.id)
-
-
-# Deposit funds
-@router.post("/deposit", response_model=InvestmentResponse)
-async def deposit(
-    request: DepositRequest, 
-    db: AsyncSession = Depends(get_db),
-    current_user: TokenData = Depends(decode_user_from_token)
-):
-    return await deposit_funds(
-        db, 
-        current_user.id, 
-        abs(request.investment_id) if isinstance(request.investment_id,int) else None, 
-        float(request.amount),
-    )
 
 
 # Withdraw funds (ROI included)

@@ -14,7 +14,6 @@ from sqlalchemy import (
     DateTime,
     event,
     ARRAY,
-    Float,
 )
 from sqlalchemy.future import select
 from sqlalchemy import types as _types
@@ -29,6 +28,7 @@ from ppgc_backend.app.enums import (
     AssetCategoryChoice,
 )
 from ppgc_backend.app.database import Base
+from ppgc_backend.app.controllers.investments.models import Investment, InvestmentTransaction
 
 
 # abstract class dependency for models with cloud images fields
@@ -572,188 +572,15 @@ class AddOn(Base):
     tag_list = Column(ARRAY(String))  # Or JSON, based on your preference
 
 
-class ChatSession(Base):
-    __tablename__ = "chat_sessions"
 
-    id = Column(Integer, primary_key=True, index=True)
-
-    # Foreign key relationship to User
-    user_id = Column(
-        Integer, 
-        ForeignKey(
-            'users.id', 
-            name='fk_chat_sessions_user_id', 
-            ondelete='CASCADE'
-        )
-    )
-    user = relationship(
-        'User', 
-        back_populates='chat_session',
-        lazy="selectin",  # Ensures relationship loads in async contexts
-        uselist=False, # many to one relationship, restricts it to associating with only one User instance.
-    )
-
-    # relationship to threads
-    threads = relationship(
-        'Thread',
-        secondary='thread_chat_session_association',
-        back_populates='chat_sessions',
-        lazy='selectin', # Ensures relationship loads in async contexts
-    )
-
-
-class Thread(Base):
-    __tablename__ = "threads"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    # relationship with messages
-    messages = relationship(
-        'Message', 
-        back_populates='thread',
-        lazy="selectin",  # Ensures relationship loads in async contexts
-    )
-
-    # Many-to-many relationship to chat_session
-    chat_sessions = relationship(
-        'ChatSession',
-        secondary='thread_chat_session_association',
-        back_populates='threads',
-        lazy='selectin', # Ensures relationship loads in async contexts
-    )
-
-    # Many to many relationship to User
-    participants = relationship(
-        'User',
-        secondary='threads_participants_association',
-        back_populates='threads',
-        lazy='selectin'
-    )
-
-
-class Message(Base):
-    __tablename__ = "messages"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    text_content = Column(String, nullable=True)
-    status = Column(String, nullable=False)
-    timestamp = Column(Integer, nullable=False)
-    updated_timestamp = Column(Integer, nullable=True)
-
-    # Foreign key relationship to Thread
-    thread_id = Column(
-        Integer, 
-        ForeignKey(
-            'threads.id', 
-            name='fk_messages_thread_id', 
-            ondelete='CASCADE'
-        )
-    )
-    thread = relationship(
-        'Thread',
-        back_populates='messages',
-        lazy='selectin'
-    )
-
-    # Foreign key relationship to sender
-    sender_id = Column(
-        Integer, 
-        ForeignKey(
-            'users.id', 
-            name='fk_messages_sender_id', 
-            ondelete='CASCADE'
-        )
-    )
-    sender = relationship(
-        'User',
-        foreign_keys=[sender_id],
-        back_populates='sent_messages',
-        lazy='selectin'
-    )
-
-    # Foreign key relationship to recipient
-    recipient_id = Column(
-        Integer, 
-        ForeignKey(
-            'users.id', 
-            name='fk_messages_recipient_id', 
-            ondelete='CASCADE'
-        )
-    )
-    recipient = relationship(
-        'User',
-        foreign_keys=[recipient_id],
-        back_populates='received_messages',
-        lazy='selectin'
-    )
-
-
-class Investment(Base):
-    __tablename__ = "investments"
-
-    id = Column(Integer, primary_key=True, index=True)
-    investment_amount = Column(Float, nullable=False)
-    interest_rate = Column(Float, default=5.0)  # 5% per month
-    status = Column(String, default="active")  # active, completed
-    # dates
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    user_id = Column(
-        Integer, 
-        ForeignKey(
-            "users.id",
-            name="fk_investments_users",
-            ondelete="CASCADE",
-        ), 
-        nullable=False
-    )
-    user = relationship(
-        "User",
-        back_populates = "investments",
-        lazy = 'selectin',
-        uselist=False
-    )
-
-    # Relationship
-    transactions = relationship(
-        "InvestmentTransaction", 
-        back_populates="investment",
-        lazy = 'selectin',
-    )
-
-
-class InvestmentTransaction(Base):
-    __tablename__ = "investment_transactions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    amount = Column(Float, nullable=False)
-    transaction_type = Column(String, nullable=False)  # deposit, withdraw
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    # Relationship
-    investment_id = Column(
-        Integer, 
-        ForeignKey(
-            "investments.id",
-            name="fk_investments_transactions_investments",
-            ondelete="CASCADE"
-        ), 
-        nullable=False
-    )
-    investment = relationship(
-        "Investment", 
-        back_populates="transactions",
-        lazy = 'selectin',
-    )
-
-
+models = [
+    Investment, 
+    InvestmentTransaction
+]
     
 
 @event.listens_for(User, 'before_insert')
 @event.listens_for(Asset, 'before_insert')
-@event.listens_for(Investment, 'before_insert')
 @event.listens_for(AbstractCloudImage, 'before_insert')
 # Listen for the 'before_insert' event to set updated_at
 def set_updated_at_before_insert(mapper, connection, target):
