@@ -27,8 +27,10 @@ from ppgc_backend.app.enums import (
     ClientTypeChoice,
     AssetCategoryChoice,
 )
-from ppgc_backend.app.database import Base
+from ppgc_backend.config.postgres_connection_manager import Base
+from ppgc_backend.app.controllers.ratings.utils import AggregateRatingAClass
 from ppgc_backend.app.controllers.investments.models import Investment, InvestmentTransaction
+from ppgc_backend.app.controllers.actors.models import UserSetting, User
 
 
 # abstract class dependency for models with cloud images fields
@@ -81,57 +83,6 @@ asset_tag_association = Table(
         primary_key=True
     )
 )
-# message-thread Association Table for many-to-many relationship
-thread_chat_session_association = Table(
-    'thread_chat_session_association',
-    Base.metadata,
-    Column(
-        'thread_id', 
-        Integer, 
-        ForeignKey(
-            'threads.id', 
-            name='fk_thread_chat_session_association_thread_id',
-            ondelete='RESTRICT'
-        ), 
-        primary_key=True
-    ),
-    Column(
-        'chat_session_id', 
-        Integer, 
-        ForeignKey(
-            'chat_sessions.id', 
-            name='fk_thread_chat_session_association_chat_session_id',
-            ondelete='RESTRICT'
-        ), 
-        primary_key=True
-    )
-)
-# message-thread Association Table for many-to-many relationship
-threads_participants_association = Table(
-    'threads_participants_association',
-    Base.metadata,
-    Column(
-        'thread_id', 
-        Integer, 
-        ForeignKey(
-            'threads.id', 
-            name='fk_threads_participants_association_thread_id',
-            ondelete='CASCADE'
-        ), 
-        primary_key=True
-    ),
-    Column(
-        'user_id', 
-        Integer, 
-        ForeignKey(
-            'users.id', 
-            name='fk_threads_participants_association_user_id',
-            ondelete='RESTRICT'
-        ), 
-        primary_key=True
-    )
-)
-
 
 # models
 
@@ -217,177 +168,6 @@ class CloudImageDetail(AbstractCloudImage):  # Inherit the abstract base
         uselist=False,  # explicitly tell SQLAlchemy it's a one-to-one 
         post_update=True,
         lazy="selectin",  # Ensures relationship loads in async contexts
-    )
-
-
-class Agent(Base):
-    __tablename__ = 'agents'
-
-    id = Column(
-        Integer, 
-        primary_key=True, 
-        index=True,
-        autoincrement=True,
-    )
-    
-    # reverse relationship with the User model
-    user = relationship(
-        'User', 
-        back_populates='agent_profile',
-        uselist=False  # explicitly tell SQLAlchemy it's a one-to-one
-    )
-    
-    # Reverse relationship to Asset (cascade on delete)
-    assets = relationship(
-        'Asset',
-        back_populates='agent',
-        cascade="all, delete-orphan",  # Cascade deletion from Agent to Asset
-        lazy="selectin",  # Ensures relationship loads in async contexts
-
-    )
-   
-
-class User(Base):
-    __tablename__ = 'users'
-
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True)
-    username = Column(String, unique=True, index=True)
-    password_hash = Column(String, nullable=False)
-    first_name = Column(String)
-    last_name = Column(String)
-    other_names = Column(String)
-    account_status = Column(String, default="Active")
-    misc = Column(JSON, default=dict, nullable=True)
-    client_type = Column(SQLAlchemyEnum(ClientTypeChoice, name='client_type_choice'), nullable=True)
-    is_active = Column(Boolean, default=True)
-    is_admin = Column(Boolean, default=False)
-
-    # dates
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    # One-to-one relationship for cover image (no cascade)
-    profile_avatar_id = Column(
-        Integer, 
-        ForeignKey(
-            'cloud_image_details.id', 
-            name='fk_user_profile_avatar_id', 
-            use_alter=True,
-            ondelete='SET NULL'
-        ), 
-        nullable=True
-    )
-    profile_avatar = relationship(
-        'CloudImageDetail', 
-        back_populates='user',
-        uselist=False, # explicitly tell SQLAlchemy it's a one-to-one
-        foreign_keys=[profile_avatar_id],
-        lazy="selectin",  # Ensures relationship loads in async contexts
-    )
-  
-    # Foreign key to Agent for one-to-one relationship (nullable until user becomes agent)
-    agent_profile_id = Column(
-        Integer, 
-        ForeignKey(
-            'agents.id', 
-            name='fk_users_agent_profile_id', 
-            use_alter=True, 
-            ondelete='SET NULL'
-        ), 
-        unique=True, 
-        nullable=True
-    )
-    agent_profile = relationship(
-        'Agent', 
-        back_populates = 'user',
-        uselist=False, # explicitly tell SQLAlchemy it's a one-to-one
-        foreign_keys=[agent_profile_id],
-        lazy="selectin",  # Ensures relationship loads in async contexts
-    )
-
-    # relationship to chat session
-    chat_session = relationship(
-        'ChatSession', 
-        back_populates = 'user',
-        lazy="selectin",  # Ensures relationship loads in async contexts
-    )
-
-    # many to many relationship with thread
-    threads = relationship(
-        'Thread',
-        secondary='threads_participants_association',
-        back_populates='participants',
-        lazy='selectin'
-    )
-    
-    # Relationships for sent and received messages
-    sent_messages = relationship(
-        'Message',
-        foreign_keys='Message.sender_id',
-        back_populates='sender',
-        lazy='selectin'
-    )
-    received_messages = relationship(
-        'Message',
-        foreign_keys='Message.recipient_id',
-        back_populates='recipient',
-        lazy='selectin'
-    )
-
-    # user settings relationship
-    user_settings = relationship(
-        'UserSetting',
-        back_populates = 'user',
-        lazy = 'selectin',
-        uselist = False,
-    )
-
-    # investments relationship
-    investments = relationship(
-        'Investment',
-        back_populates = 'user',
-        lazy = 'selectin',
-    )
-
-    # method for a user to become an agent
-    async def become_agent(self, session):
-        """Method to convert a user into an agent."""
-        if not self.agent_profile:
-            # Create a new Agent instance associated with this user
-            agent = Agent(user=self)
-            session.add(agent)
-            await session.flush()  # Ensures the new `agent` has an `id` before committing
-            await session.commit()
-            await session.refresh(self)  # Refresh `self` to update the `agent_profile`
-
-
-class UserSetting(Base):
-    __tablename__ = 'user_settings'
-
-    id = Column(Integer, primary_key=True, index=True)
-    date_of_birth = Column(Date, nullable=True)
-    country = Column(String, nullable=True)
-    phone_number = Column(String, nullable=True)
-    address = Column(String, nullable=True)
-    email_notification = Column(Boolean, default=True)
-    push_notification = Column(Boolean, default=True)
-
-    user_id = Column(
-        Integer, 
-        ForeignKey(
-            'users.id', 
-            name='fk_user_settings_users', 
-            use_alter=True,
-            ondelete='CASCADE'
-        ), 
-        nullable=False
-    )
-    user = relationship(
-        'User',
-        back_populates='user_settings',
-        lazy='selectin',
-        uselist = False,
     )
 
 
@@ -572,14 +352,43 @@ class AddOn(Base):
     tag_list = Column(ARRAY(String))  # Or JSON, based on your preference
 
 
+class Area(AggregateRatingAClass):
+    __tablename__ = 'areas'
+
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # For international usage, consider using a library like pycountry or geopy for validating country/state/city combinations.
+    country = Column(String, nullable=False) # e.g., Nigeria
+    state_or_province = Column(String, nullable=False) # e.g., "California" or "Lagos"
+    city_or_town = Column(String, nullable=False) # e.g., "San Francisco" or "Ikeja"
+    county = Column(String) # US-based e.g., "Los Angeles County"
+    street = Column(String) # e.g., "Market Street", "Ahmadu Bello Way"
+    building_name_or_suite = Column(String) # e.g., "Apt 402"
+    zip_or_postal_code = Column(String) # e.g., 500102
+
+
+    asset = relationship(
+        'Asset',
+        back_populates='area',
+        lazy = 'selectin',
+        uselist=False
+    )
+    ratings = relationship(
+        'Rating',
+        lazy='selectin',
+        back_populates = 'area'
+    )
+
+
 
 models = [
+    User,
     Investment, 
-    InvestmentTransaction
+    UserSetting,
+    InvestmentTransaction,
 ]
     
 
-@event.listens_for(User, 'before_insert')
 @event.listens_for(Asset, 'before_insert')
 @event.listens_for(AbstractCloudImage, 'before_insert')
 # Listen for the 'before_insert' event to set updated_at
