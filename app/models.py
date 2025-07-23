@@ -24,38 +24,11 @@ from sqlalchemy.ext.declarative import declared_attr
 
 from ppgc_backend.app.enums import (
     EmailManagementReasonChoice,
-    ClientTypeChoice,
-    AssetCategoryChoice,
 )
 from ppgc_backend.config.postgres_connection_manager import Base
 from ppgc_backend.app.controllers.ratings.utils import AggregateRatingAClass
 from ppgc_backend.app.controllers.investments.models import Investment, InvestmentTransaction
 from ppgc_backend.app.controllers.actors.models import UserSetting, User
-
-
-# abstract class dependency for models with cloud images fields
-class AbstractCloudImage(Base):
-    __abstract__ = True  # Ensure this class is not mapped to its own table
-
-    id = Column(Integer, primary_key=True, index=True)
-    format = Column(String, nullable=False)
-    cloud_asset_id = Column(String, nullable=False)
-    bytes = Column(Integer, nullable=False)
-    height = Column(Integer, nullable=False)
-    public_id = Column(String, unique=True, nullable=False)
-    secure_url = Column(String, nullable=False)
-    width = Column(Integer, nullable=False)
-
-    # dates
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    # Optionally, if you want dynamic table names, you can define a declared_attr:
-    @declared_attr
-    def __tablename__(cls):
-        return cls.__name__.lower()  # Use class name as table name
-
-
 
 
 # asset-tag Association Table for many-to-many relationship
@@ -148,27 +121,6 @@ class EmailManagementModel(Base):
             select(cls).filter(cls.email_code == email_code_to_check)
         )
         return result.scalars().first() is not None
-
-
-class CloudImageDetail(AbstractCloudImage):  # Inherit the abstract base
-    __tablename__ = 'cloud_image_details'
-
-    # Reverse relationship to user
-    user = relationship(
-        'User', 
-        back_populates='profile_avatar',
-        uselist=False,  # explicitly tell SQLAlchemy it's a one-to-one
-        lazy="selectin",  # Ensures relationship loads in async contexts
-    )
-
-    # Reverse relationship to Asset
-    asset = relationship(
-        'Asset', 
-        back_populates='cover_image',
-        uselist=False,  # explicitly tell SQLAlchemy it's a one-to-one 
-        post_update=True,
-        lazy="selectin",  # Ensures relationship loads in async contexts
-    )
 
 
 class Tag(Base):
@@ -303,48 +255,6 @@ class AssetFeature(Base):
     )
 
 
-class AssetCloudImage(AbstractCloudImage):
-    __tablename__ = 'asset_cloud_images'
-
-    id = Column(Integer, primary_key=True, index=True)
-    
-    # Foreign key relationship to asset (no cascade)
-    asset_id = Column(
-        Integer, 
-        ForeignKey(
-            'assets.id', 
-            name='fk_asset_cloud_images_asset_id', 
-            use_alter=True,
-            ondelete='CASCADE'
-        )
-    )
-    asset = relationship(
-        'Asset', 
-        back_populates='cloud_images',
-        foreign_keys=[asset_id],
-        lazy="selectin",  # Ensures relationship loads in async contexts
-
-    )
-
-    # Foreign key relationship to asset_features (no cascade)
-    asset_feature_id = Column(
-        Integer, 
-        ForeignKey(
-            'asset_features.id', 
-            name='fk_asset_cloud_images_asset_feature_id', 
-            use_alter=True,
-            ondelete='CASCADE'
-        )
-    )
-    asset_feature = relationship(
-        'AssetFeature', 
-        back_populates='cloud_images',
-        foreign_keys=[asset_feature_id],
-        lazy="selectin",  # Ensures relationship loads in async contexts
-
-    )
-
-
 class AddOn(Base):
     __tablename__ = 'add_ons'
 
@@ -390,7 +300,6 @@ models = [
     
 
 @event.listens_for(Asset, 'before_insert')
-@event.listens_for(AbstractCloudImage, 'before_insert')
 # Listen for the 'before_insert' event to set updated_at
 def set_updated_at_before_insert(mapper, connection, target):
     target.updated_at = func.now()

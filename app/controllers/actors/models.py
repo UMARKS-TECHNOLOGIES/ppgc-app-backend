@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     event,
     Date,
+    CheckConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -27,6 +28,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     username = Column(String, unique=True, index=True)
     password_hash = Column(String, nullable=False)
+    pin_hash = Column(String, nullable=False)
     first_name = Column(String)
     last_name = Column(String)
     other_names = Column(String)
@@ -48,62 +50,48 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     profile_avatar_url = Column(String(1024))
-  
 
-    # user settings relationship
-    user_settings = relationship(
-        'UserSetting',
-        back_populates = 'user',
-        lazy = 'selectin',
-        uselist = False,
-    )
-
-    # google oauth details relationship
-    google_oauth_detail = relationship(
-        'GoogleOAuthDetail',
-        back_populates = 'user',
-        lazy = 'selectin',
-        uselist = False,
-    )
-
-    # relationship to notification
-    notifications = relationship(
-        'Notification',
-        lazy='selectin',
-        back_populates = 'user'
-    )
-
-
-class UserSetting(Base):
-    __tablename__ = 'user_settings'
-
-    id = Column(Integer, primary_key=True, index=True)
+    nin = Column(String)
     date_of_birth = Column(Date, nullable=True)
-    country = Column(String, nullable=True)
     phone_number = Column(String, nullable=True)
     address = Column(String, nullable=True)
     email_notification = Column(Boolean, default=True)
     push_notification = Column(Boolean, default=True)
 
-    user_id = Column(
-        Integer, 
-        ForeignKey(
-            'users.id', 
-            name='fk_user_settings_users', 
-            use_alter=True,
-            ondelete='CASCADE'
-        ), 
-        nullable=False
+    __table_args__ = (
+        CheckConstraint("char_length(nin) = 11", name="check_nin_length_11"),
     )
-    user = relationship(
-        'User',
-        back_populates='user_settings',
-        lazy='selectin',
-        uselist = False,
-    )
+
+
+    class BankAccount(Base):
+        __tablename__ = "bank_accounts"
+
+        id = Column(Integer, primary_key=True, index=True)
+        account_number = Column(String(20), nullable=False, unique=True)
+        account_name = Column(String(100), nullable=False)
+        bank_name = Column(String(100), nullable=False)
+        bank_code = Column(String(20), nullable=True)  # Optional: useful for integrations
+        currency = Column(String(10), default="NGN")  # e.g. NGN, USD
+
+        user_id = Column(
+            Integer, 
+            ForeignKey(
+                "users.id", 
+                name = "fk_bank_accounts_users",
+                ondelete="CASCADE"
+            ), 
+            nullable=True
+        )
+        user = relationship(
+            "User", 
+            lazy = "selectin",
+            backref="bank_accounts",
+            uselist=False
+        )
 
 
 @event.listens_for(User, 'before_insert')
 # Listen for the 'before_insert' event to set updated_at
 def set_updated_at_before_insert(mapper, connection, target):
     target.updated_at = func.now()
+
