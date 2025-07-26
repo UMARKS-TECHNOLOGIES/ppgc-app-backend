@@ -1,4 +1,4 @@
-from ppgc_backend.app.db.postgres import get_postgres_instance
+from ppgc_backend.config.postgres_connection_manager import get_postgres_instance
 
 # Dependency to get async DB session
 async def get_db():

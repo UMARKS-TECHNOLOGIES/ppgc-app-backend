@@ -2,80 +2,41 @@ from sqlalchemy import (
     Column, 
     Integer, 
     String,
-    ForeignKey, 
-    Date, 
     Boolean, 
-    JSON, 
-    Text, 
-    Table,
     Enum as SQLAlchemyEnum, 
     func,
-    Numeric,
     DateTime,
-    event,
-    ARRAY,
 )
 from sqlalchemy.future import select
 from sqlalchemy import types as _types
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.ext.declarative import declared_attr
-
 
 from ppgc_backend.app.enums import (
     EmailManagementReasonChoice,
 )
+from ppgc_backend.app.controllers.actors.models import User
 from ppgc_backend.config.postgres_connection_manager import Base
+from ppgc_backend.app.controllers.properties.models import Property
 from ppgc_backend.app.controllers.ratings.utils import AggregateRatingAClass
 from ppgc_backend.app.controllers.investments.models import Investment, InvestmentTransaction
-from ppgc_backend.app.controllers.actors.models import UserSetting, User
-
-
-# asset-tag Association Table for many-to-many relationship
-asset_tag_association = Table(
-    'asset_tag_association',
-    Base.metadata,
-    Column(
-        'asset_id', 
-        Integer, 
-        ForeignKey(
-            'assets.id', 
-            name='fk_asset_tag_association_asset_id',
-            ondelete='CASCADE'
-        ), 
-        primary_key=True
-    ),
-    Column(
-        'tag_id', 
-        Integer, 
-        ForeignKey(
-            'tags.id', 
-            name='fk_asset_tag_association_tag_id',
-            ondelete='RESTRICT'
-        ), 
-        primary_key=True
-    )
-)
-
-# models
 
 # cascade="all, delete-orphan"
 # this specifies the operations that should "cascade" 
 # from the parent object to the related child objects 
 # (usually in a one-to-many or many-to-one relationship).
 
-class EmailManagementModel(Base):
-    __tablename__ = 'email_management_model'
+class TransientVerificationStore(Base):
+    __tablename__ = 'transient_verification_store'
 
-    id = Column(String, primary_key=True, index=True)
-    email_address = Column(String, nullable=True)
-    email_code = Column(String(255), unique=True, nullable=True)
-    email_code_time = Column(
-        _types.TIMESTAMP(timezone=True),
-        server_default=func.now(),  # Sets the default value on insert
-        onupdate=func.now(),        # Updates the value on update
-        nullable=True
-    )
+    id = Column(Integer, primary_key=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    email_address = Column(String, nullable=True, unique=True)
+    email_code = Column(String(255), nullable=True)
+    email_code_expiry_time = Column(DateTime(timezone=True), nullable=True)
+    email_address_verified = Column(Boolean, default=False)
+    
     email_link = Column(String, nullable=True)
     email_link_time = Column(
         _types.TIMESTAMP(timezone=True),
@@ -123,144 +84,6 @@ class EmailManagementModel(Base):
         return result.scalars().first() is not None
 
 
-class Tag(Base):
-    __tablename__ = 'tags'
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, nullable=False)
-
-    # Relationship
-    assets = relationship(
-        'Asset', 
-        secondary='asset_tag_association', 
-        back_populates='tags',
-        lazy="selectin",  # Ensures relationship loads in async contexts
-    )
-
-
-class Asset(Base):
-    __tablename__ = 'assets'
-
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, nullable=False)
-    country = Column(String, nullable=False)
-    address = Column(String, nullable=False)
-    currency = Column(String, nullable=False)
-    status = Column(String, nullable=False)
-    amount = Column(Numeric, nullable=False)
-    lease_duration = Column(String, nullable=True)
-    description = Column(Text, nullable=True)
-    has_features = Column(Boolean, default=False)
-    availability = Column(Text, nullable=False, default="available")
-
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    # Enums
-    #category= Column(SQLAlchemyEnum(AssetCategoryChoice, name='asset_category_choice'), nullable=True)
-    category= Column(String, nullable=False)
-
-    # Foreign key relationship to Agent
-    agent_id = Column(
-        Integer, 
-        ForeignKey(
-            'agents.id', 
-            name='fk_assets_agent_id', 
-            ondelete='CASCADE'
-        )
-    )
-    agent = relationship(
-        'Agent', 
-        back_populates='assets',
-        lazy="selectin",  # Ensures relationship loads in async contexts
-    )
-
-    # One-to-one relationship for cover image (no cascade)
-    cover_image_id = Column(
-        Integer, 
-        ForeignKey(
-            'cloud_image_details.id', 
-            name='fk_assets_cover_image_id', 
-            use_alter=True, 
-            ondelete='SET NULL'
-        ), 
-        nullable=True
-    )
-    cover_image = relationship(
-        'CloudImageDetail', 
-        back_populates='asset',
-        uselist=False, # explicitly tell SQLAlchemy it's a one-to-one
-        foreign_keys=[cover_image_id], 
-        post_update=True,
-        lazy="selectin",  # Ensures relationship loads in async contexts
-    )
-    
-    # Many-to-many relationship with Tag
-    tags = relationship(
-        'Tag', 
-        secondary='asset_tag_association', 
-        back_populates='assets',
-        lazy="selectin",  # Ensures relationship loads in async contexts
-    )
-
-    # Reverse relationship to asset feature
-    features = relationship(
-        'AssetFeature', 
-        back_populates='asset',
-        cascade="all, delete-orphan", # cascade from Asset to AssetFeature
-        lazy="selectin",  # Ensures relationship loads in async contexts
-
-    )
-
-    # Reverse relationship to the AssetCloudImage
-    cloud_images = relationship(
-        'AssetCloudImage', 
-        back_populates='asset',
-        cascade="all, delete-orphan", # cascade from Asset to AssetCloudImage
-        lazy="selectin",  # Ensures relationship loads in async contexts
-    )
-
-
-class AssetFeature(Base):
-    __tablename__ = 'asset_features'
-
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, nullable=False)
-
-    # Foreign key relationship to Asset (cascade on delete)
-    asset_id = Column(
-        Integer, 
-        ForeignKey(
-            'assets.id', 
-            name='fk_asset_features_asset_id', 
-            use_alter=True,
-            ondelete='CASCADE'
-        )
-    )
-    asset = relationship(
-        'Asset', 
-        back_populates='features',
-        foreign_keys=[asset_id],
-        lazy="selectin",  # Ensures relationship loads in async contexts
-
-    )
-
-    # Reverse relationship to the AssetCloudImage
-    cloud_images = relationship(
-        'AssetCloudImage', 
-        back_populates='asset_feature',
-        cascade="all, delete-orphan", # cascade from AssetFeature to AssetCloudImage
-        lazy="selectin",  # Ensures relationship loads in async contexts
-    )
-
-
-class AddOn(Base):
-    __tablename__ = 'add_ons'
-
-    id = Column(Integer, primary_key=True, index=True)
-    tag_list = Column(ARRAY(String))  # Or JSON, based on your preference
-
 
 class Area(AggregateRatingAClass):
     __tablename__ = 'areas'
@@ -277,29 +100,10 @@ class Area(AggregateRatingAClass):
     zip_or_postal_code = Column(String) # e.g., 500102
 
 
-    asset = relationship(
-        'Asset',
-        back_populates='area',
-        lazy = 'selectin',
-        uselist=False
-    )
-    ratings = relationship(
-        'Rating',
-        lazy='selectin',
-        back_populates = 'area'
-    )
-
-
 
 models = [
     User,
+    Property,
     Investment, 
-    UserSetting,
     InvestmentTransaction,
 ]
-    
-
-@event.listens_for(Asset, 'before_insert')
-# Listen for the 'before_insert' event to set updated_at
-def set_updated_at_before_insert(mapper, connection, target):
-    target.updated_at = func.now()

@@ -1,6 +1,5 @@
 from sqlalchemy import Column, Integer
 from sqlalchemy.ext.declarative import declared_attr
-
 from ppgc_backend.config.postgres_connection_manager import Base
 
 

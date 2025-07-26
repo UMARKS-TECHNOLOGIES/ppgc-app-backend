@@ -2,27 +2,19 @@ from sqlalchemy import (
     Column, 
     Integer, 
     String,
-    ForeignKey, 
-    Date, 
     Boolean, 
-    JSON, 
     Text, 
-    Table,
-    Enum as SQLAlchemyEnum, 
     func,
     Numeric,
     DateTime,
     event,
-    ARRAY,
+    ForeignKey
 )
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.ext.declarative import declarative_base
-
 
 from ppgc_backend.config.postgres_connection_manager import Base
 
-
-Base = declarative_base()
 
 class Property(Base):
     __tablename__ = 'properties'
@@ -44,11 +36,27 @@ class Property(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Enums
-    #category= Column(SQLAlchemyEnum(AssetCategoryChoice, name='asset_category_choice'), nullable=True)
     category= Column(String, nullable=False)
 
     # Reverse relationship to asset feature
     features = Column(JSONB)
+
+    area_id = Column(
+        Integer,
+        ForeignKey(
+            'areas.id',
+            name = 'fk_properties_area_id_areas',
+            ondelete='RESTRICT',
+        ),
+        nullable = False
+    )
+    area = relationship(
+        'Area',
+        backref = 'property',
+        uselist = False,
+        lazy='selectin'
+    )
+
 
 @event.listens_for(Property, 'before_insert')
 # Listen for the 'before_insert' event to set updated_at

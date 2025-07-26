@@ -18,7 +18,7 @@ class ProbeUserExistenceSchema(BaseModel):
 class SendEmailCodeSchema(ProbeUserExistenceSchema):
     pass
 
-class UserRegistrationSchema(BaseModel):
+class RequestEmailCodeSchema(BaseModel):
     email: str
     username: str
     password: str
@@ -27,10 +27,8 @@ class UserRegistrationSchema(BaseModel):
     #last_name: str
     # Add other fields as needed
 
-class AgentRegistrationSchema(UserRegistrationSchema):
-    pass
 
-class SignupCodeVerificationSchema(UserRegistrationSchema):
+class SignupCodeVerificationSchema():
     verification_code: str
     fullname: str
     client_type: str

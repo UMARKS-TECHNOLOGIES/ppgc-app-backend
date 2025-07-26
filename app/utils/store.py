@@ -3,6 +3,15 @@ import importlib.resources as resources
 from string import Template
 
 
+from ppgc_backend.config import get_env
+from ppgc_backend.config.settings import (
+    EMAIL_VERIFICATION_CODE_TTL,
+    TEST_EMAIL_VERIFICATION_CODE_TTL,
+    TRANSIENT_EMAIL_VERIFICATION_TTL,
+    TEST_TRANSIENT_EMAIL_VERIFICATION_TTL
+)
+
+
 resend.api_key = "re_ZiJG94e2_3Y8QW4MuBrpGbHyDdQcdYWVX"
 
 
@@ -48,6 +57,21 @@ def substituted_string(context: str, map: dict) -> str:
     return response
 
 def email_verification_code_ttl():
-    one_minute = 60
-    expiry_time = 5 * one_minute  # 5 minutes
+    env = get_env()
+    env_is_test = env == 'test'
+    expiry_time = (
+        TEST_EMAIL_VERIFICATION_CODE_TTL 
+        if env_is_test else 
+        EMAIL_VERIFICATION_CODE_TTL
+    )  # 5 minutes
+    return expiry_time
+
+def transient_email_verification_ttl():
+    env = get_env()
+    env_is_test = env == 'test'
+    expiry_time = (
+        TRANSIENT_EMAIL_VERIFICATION_TTL 
+        if env_is_test else 
+        TEST_TRANSIENT_EMAIL_VERIFICATION_TTL
+    )  # 5 minutes
     return expiry_time

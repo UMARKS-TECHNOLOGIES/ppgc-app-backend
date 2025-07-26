@@ -1,10 +1,11 @@
 import random 
-import redis.asyncio as redis
+import asyncio
 from jose import jwt, JWTError
 from typing import List, Callable
 from sqlalchemy.future import select
 from passlib.context import CryptContext
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta, timezone
@@ -14,21 +15,23 @@ from fastapi import FastAPI, APIRouter, HTTPException, status, Depends
 from .schemas import TokenData  # if using a TokenData schema
 from ppgc_backend.app.models import (
     User,
+    TransientVerificationStore
 )
+from .schemas import UserRegistrationSchema
 from ppgc_backend.app.schemas.auth_schemas import (
-    UserRegistrationSchema, 
     TokenData, 
     ProbeUserExistenceSchema,
-    SendEmailCodeSchema,
-    SignupCodeVerificationSchema
 )
 from ppgc_backend.app.utils.store import (
     read_email_from_html_template_name,
     substituted_string,
     send_email,
+    email_verification_code_ttl,
+    transient_email_verification_ttl,
 )
-from ppgc_backend.config.settings import JWT_SECRET_KEY, JWT_EXPIRATION_DELTA, JWT_ALGORITHM
 from ppgc_backend.app.database import get_db
+from ppgc_backend.config.settings import DEBUG
+from ppgc_backend.config.settings import JWT_SECRET_KEY, JWT_EXPIRATION_DELTA, JWT_ALGORITHM
 
 
 import logging
@@ -225,6 +228,145 @@ async def decode_user_from_token_optional(
     return user
 
 
+async def email_code_cleanup_loop(
+    session: AsyncSession, 
+    email_code: str,
+    check_interval_in_secs: int = 60,
+):
+    """
+    Starts a background task to monitor and delete an email verification code
+    after it exceeds the email_code_expiry_time.
+
+    Parameters:
+        session: AsyncSession - SQLAlchemy async session.
+        email_code: str - The verification code to track.
+        check_interval_in_secs: int - Frequency of check in seconds.
+    """
+    async def run_cache_task():
+        while True:
+            try:
+                result = await session.execute(
+                    select(TransientVerificationStore)
+                    .where(TransientVerificationStore.email_code == email_code)
+                )
+                transient_instance = result.scalars().first()
+
+                if not transient_instance:
+                    break
+
+                now = datetime.now(timezone.utc)
+                expiry = transient_instance.email_code_expiry_time
+                if now >= expiry: # modify the verified field to True
+                    transient_instance.email_code_expiry_time = None
+                    session.add(transient_instance)
+                    await session.commit()
+                    
+                    # sleep the function for transient ttl seconds
+                    await asyncio.sleep(transient_email_verification_ttl())
+
+                    # delete the instance if the email_code_expiry_time is None
+                    await session.refresh(transient_instance)
+                    if not transient_instance.email_code_expiry_time:
+                        await session.delete(transient_instance)
+                        await session.commit()
+
+                    break
+
+            except Exception as e:
+                await session.rollback()
+                if DEBUG:
+                    print("❗ Error in email_code_cleanup_loop:", str(e))
+
+            await asyncio.sleep(check_interval_in_secs)
+    
+    asyncio.create_task(run_cache_task())
+    
+
+# user existence
+async def verify_email_uniqueness_and_request_verification_code(session: AsyncSession, data: dict):
+    email_address = data['email']
+    fullname = data['fullname']
+    
+    # query email uniqueness from the user's database
+    email_query = await session.execute(
+        select(User)
+        .where(User.email == email_address)
+    )
+    email_exists = email_query.scalars().first()
+    if email_exists:
+        raise HTTPException(
+            status_code = status.HTTP_403_FORBIDDEN,
+            detail = f"Email {email_address} already exists"
+        )
+
+    # Check if the request already exists
+    query = await session.execute(
+        select(TransientVerificationStore)
+        .where(TransientVerificationStore.email_address == email_address)
+    )
+    request_instance = query.scalars().one()
+
+    # raise an exception if an instance and it expiry time exists.
+    if request_instance and request_instance.email_code_expiry_time:
+        raise HTTPException(
+            status_code = status.HTTP_302_FOUND,
+            detail = "An email code has already been sent."
+        )
+
+    code = await request_verification_code(session, email_address, fullname)
+
+    try:
+        # persist code and expiry
+        expiry_time = datetime.now(timezone.utc) + timedelta(seconds=email_verification_code_ttl())
+
+        if not request_instance:
+            request_instance = TransientVerificationStore(
+                email_address = email_address,
+            )
+        request_instance.email_code = code
+        request_instance.email_code_expiry_time = expiry_time
+        session.add(request_instance)
+        await session.commit()
+
+        # run cleanup task
+        await email_code_cleanup_loop(session, code)
+
+        return {
+            "detail" : f"A verification code has been sent to the email {email_address}. Also check your spam folder.",
+            "expiry": expiry_time.isoformat()
+        }
+    except Exception as e:
+        await session.rollback()
+        f_message = "An error occured while registering user."
+        d_message= f"{f_message} Reason: {e}" 
+        logger.error(d_message)
+        raise Exception(
+            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail = f_message
+        )
+
+
+async def request_verification_code(db: AsyncSession, email_address:str, username: str):
+    
+    code = '{:04d}'.format(random.randint(0, 9999))
+    
+    try:
+        await send_email_verification_code(
+            code = code,
+            user_name = username,
+            email_address=email_address
+        )
+    except Exception as e:
+        f_message = "An error occured while sending verification email"
+        d_message= f"{f_message} Reason: {e}" 
+        logger.error(d_message)
+        raise Exception(
+            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail = f_message
+        )
+    
+    return code
+
 async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).filter(User.id == user_id))
     user = result.scalars().first()
@@ -237,185 +379,96 @@ async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
 
 
 async def send_email_verification_code(
-    requester_data: SendEmailCodeSchema, 
-    redis_client: redis.Redis,
-    expiry_time_in_secs: int,
+    code: str,
+    user_name: str,
+    email_address: str, 
 ):
-    # print(f"**expiry_time_in_secs: {expiry_time_in_secs}")
-
-    email_address = requester_data.email
-    user_name = requester_data.username if requester_data.username else "User"
-    reason = "email_verification"
-
-    """
-        `email:reason` is the hset's key 
-        the reason is the field
-        the code is the value
-    """
-
-    # Check if the code exists in the cache
-    user_key = f'{email_address}:{reason}'
-    user_email_code = await redis_client.hget(user_key, reason)
-
-    if user_email_code: #When a result is found
-        ttl = await redis_client.hget(user_key, "ttl")
-        return {
-            "email_status": "Dispatched",
-            "message": "Please wait before requesting a new code.",
-            "ttl": ttl
+    # call the email function and send the email
+    # extract the email content from the template
+    email_template_content = read_email_from_html_template_name('email_verification_code_template')
+    property_street_address = "Port Harcourt"
+    
+    email_string = substituted_string(
+        email_template_content,
+        {
+            "user_name":user_name,
+            "verification_code":code,
+            "prince_paradise_address": property_street_address
         }
-    else: # When no result is found
-        try:
-            # Generate a new five-digit code
-            new_code = '{:04d}'.format(random.randint(0, 9999))
+    )
+    from_address="team@stackfinancialsolutions.com"
+    subject="PPGC Verification Code"
+    from_name="Prince Paradise"
+    #to_name="Customer"
 
-            # call the email function and send the email
-            # extract the email content from the template
-            email_template_content = read_email_from_html_template_name('email_verification_code_template')
-            property_street_address = "Port Harcourt"
-            
-            email_string = substituted_string(
-                email_template_content,
-                {
-                    "user_name":user_name,
-                    "verification_code":new_code,
-                    "property_street_address": property_street_address
-                }
-            )
-            from_address="team@stackfinancialsolutions.com"
-            subject="Property street Verification Code"
-            from_name="Property street"
-            #to_name="Customer"
-
-            send_email(
-                from_email=from_address,
-                to_email=email_address,
-                from_name=from_name,
-                subject=subject,
-                html_email=email_string
-            )
-
-            # create another instance of the user with the new code
-            await redis_client.hset(user_key, reason, new_code)
-
-            # get the current time and add the ttl
-            current_time = datetime.now(timezone.utc)
-            ttl_time = (current_time + timedelta(seconds=expiry_time_in_secs)).isoformat()
-
-            # save the ttl_time in the ttl field of the user's key
-            await redis_client.hset(user_key, "ttl", ttl_time)
-
-            # set an expiry for the user key
-            # explicitly convert the expiry_time_in_secs to int
-            # to avoid `value is not an integer or out of range` error
-            await redis_client.expire(user_key, int(expiry_time_in_secs)) 
-
-            return {
-                "email_status":"DispatchedNow",
-                "message":"A new verification code has been sent to your email.",
-                "ttl": ttl_time
-            }
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Internal Server Error: Something went wrong. Please try again later.",
-                headers={"X-Error": "Server error"},
-            )
+    send_email(
+        from_email=from_address,
+        to_email=email_address,
+        from_name=from_name,
+        subject=subject,
+        html_email=email_string
+    )
         
 
 async def confirm_email_verification_code_and_sign_user_up(
-    requester_data: SignupCodeVerificationSchema, 
-    redis_client: redis.Redis,
-    db: AsyncSession,
+    data: dict, 
+    session: AsyncSession,
 ):
-    email_address = requester_data.email
-    reason = "email_verification"
-    input_code = requester_data.verification_code
+    # Fetch the record
+    stmt = select(TransientVerificationStore).where(
+        TransientVerificationStore.email_address == data['email'],
+        TransientVerificationStore.email_code == data['code'],
+    )
+    result = await session.execute(stmt)
+    record = result.scalar_one_or_none()
 
-    # `email:reason` is the HSET's key
-    user_key = f'{email_address}:{reason}'
-
-    # Check if the key exists in the cache
-    user_email_code = await redis_client.hget(user_key, reason)
-
-    if not user_email_code:
+    if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Verification code not found or expired."
         )
 
-    # Confirm the input code matches the one in the cache
-    if input_code != user_email_code.decode('utf-8'):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid verification code."
-        )
-
-    # Hash the user's password before saving it to the database
-    # hashed_password = get_password_hash(requester_data.password)
-
-    # get the client type User or Agent
-    client_type = requester_data.client_type.lower()
-    
-    user_data = UserRegistrationSchema(
-        email=email_address,
-        username=requester_data.username,
-        password=requester_data.password,
-    )
-
-    created_client = None  # Initialize variable to avoid UnboundLocalError
-
-    if client_type == 'client':
-        # Create the new user instance
-        created_client = await create_user(
-            db = db,
-            user_data = user_data   
-        )
-    elif client_type == 'agent':
-        agent = await create_agent(
-            db = db,
-            user_data = user_data
-        )
-        created_client = agent.user
+    # Hash the user's password or pin before saving it to the database
+    collection = {}
+    if data['pin']:
+        collection['pin'] = get_password_hash(data['pin'])
+    if data['password']:
+        collection['password'] = get_password_hash(data['password'])
 
     # extracting names from the fullname
-    name_list = requester_data.fullname.split()
+    name_list = data['fullname'].split()
     
     # adding the first_name
-    created_client.first_name = name_list[0]
-    
+    first_name = name_list[0]
+    collection['first_name'] = first_name
     # adding last_name
     if len(name_list) > 1:
-        created_client.last_name = name_list[-1]
-    
+        last_name = name_list[-1]
+        collection['last_name'] = last_name
     # Adding other_names (middle names or any names between the first and last)
     if len(name_list) > 2:
-        created_client.other_names = " ".join(name_list[1:-1])
+        other_names = " ".join(name_list[1:-1])
+        collection['other_names'] = other_names
+    
+
 
     try:
         # Add the new user to the session and commit the transaction
-        db.add(created_client)
-        await db.commit()
-        await db.refresh(created_client)
+        session.add(User(**collection))
+        await session.commit()
 
         # delete the verification code from Redis after successful registration
-        await redis_client.delete(user_key)
+        await session.delete(record)
 
         return {
-            "email_status": "Verified",
-            "message": "The email has been successfully verified and the user has been registered.",
-            "user_id": created_client.id,
+            "detail": "Email verified and user registered",
         }
 
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email or username already exists."
-        )
-
     except Exception as e:
-        await db.rollback()
+        f_message = "An error occured while creating the user"
+        d_message= f"{f_message} Reason: {e}" 
+        logger.error(d_message)
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while creating the user."

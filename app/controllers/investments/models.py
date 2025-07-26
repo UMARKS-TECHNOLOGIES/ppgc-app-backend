@@ -6,14 +6,13 @@ from sqlalchemy import (
     func,
     DateTime,
     event,
-    ARRAY,
     Float,
     String,
 )
 from sqlalchemy.orm import relationship
 
 
-from ppgc_backend.app.database import Base
+from ppgc_backend.config.postgres_connection_manager import Base
 
 
 class Investment(Base):
@@ -40,16 +39,9 @@ class Investment(Base):
     )
     user = relationship(
         "User",
-        back_populates = "investments",
+        backref = "investments",
         lazy = 'selectin',
         uselist=False
-    )
-
-    # Relationship
-    transactions = relationship(
-        "InvestmentTransaction", 
-        back_populates="investment",
-        lazy = 'selectin',
     )
 
 
@@ -73,7 +65,7 @@ class InvestmentTransaction(Base):
     )
     investment = relationship(
         "Investment", 
-        back_populates="transactions",
+        backref="transactions",
         lazy = 'selectin',
     )
 

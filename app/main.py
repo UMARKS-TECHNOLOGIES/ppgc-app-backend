@@ -1,53 +1,30 @@
 # main.py
-import redis
 from fastapi import (
     APIRouter, 
     Depends, 
-    FastAPI
 )
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import (
-    AsyncSession
-)
-from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
 
 
+from ppgc_backend.app.controllers.auth import routes as auth_routes
 from ppgc_backend.app.database import (
     get_db,
 )
-from ppgc_backend.app.routers import (
-    auth, 
-    activity,
-    search,
-    settings,
-    roi,
-)
+# from ppgc_backend.app.routers import (
+#     activity,
+#     search,
+#     settings,
+#     roi,
+# )
 from ppgc_backend.app.initiator import (
     app, 
-    redis_client
 )
 from ppgc_backend.config.settings import (
     environment,
     CORS_ORIGINS
 )
-from ppgc_backend.app.controllers.activity.asset_routine_methods import (
-    asset_auto_category_expiry
-)
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup logic
-    redis = await redis_client().__anext__()
-    await asset_auto_category_expiry(
-        redis_client=redis
-    )
-    yield  # Application runs here
-    # Shutdown logic (if needed)
-    # e.g., await redis_client.close()
-
-app = FastAPI(lifespan=lifespan)
 
 
 # CORS middleware
@@ -70,16 +47,6 @@ def read_root():
         "environment": environment
     }
 
-@home_router.get("/test-redis")
-async def test_redis(
-    redis_client: redis.Redis = Depends(redis_client),
-):
-    await redis_client.set("test_key", "value")
-    value = await redis_client.get("test_key")
-    return {
-        "test_key": value,
-        "environment": environment
-    }
 
 @home_router.get("/test-database")
 async def test_database(
@@ -107,9 +74,9 @@ async def test_database(
         }
 
 # Include routers
-app.include_router(auth.router)
-app.include_router(activity.router)
-app.include_router(search.router)
-app.include_router(settings.router)
-app.include_router(roi.router)
-app.include_router(home_router)
+app.include_router(auth_routes.router)
+# app.include_router(activity.router)
+# app.include_router(search.router)
+# app.include_router(settings.router)
+# app.include_router(roi.router)
+# app.include_router(home_router)

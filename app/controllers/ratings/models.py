@@ -36,7 +36,7 @@ class Rating(Base):
     area = relationship(
         'Area',
         lazy='selectin',
-        back_populates='ratings',
+        backref='ratings',
         uselist = False
     )
 
@@ -52,7 +52,7 @@ class Rating(Base):
     )
     commenter = relationship(
         "User",
-        back_populates = "rating",
+        backref = "rating",
         lazy = "selectin",
         uselist = False
     )

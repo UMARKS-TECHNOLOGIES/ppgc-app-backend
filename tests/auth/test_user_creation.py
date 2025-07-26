@@ -1,250 +1,197 @@
 import pytest
 import asyncio
-
+from httpx import AsyncClient
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from httpx import AsyncClient
-
-from property_street_backend.app.models import User
-from property_street_backend.app.controllers.auth import create_user
-from property_street_backend.app.schemas.auth_schemas import UserRegistrationSchema
+from datetime import datetime, timedelta, timezone
 
 
-async def create_test_user(db):
-    # Define a test user
+from ppgc_backend.app.utils.store import (
+    email_verification_code_ttl,
+    transient_email_verification_ttl,
+)
+from ppgc_backend.app.controllers.auth.services import create_user
+from ppgc_backend.app.models import User, TransientVerificationStore
+from ppgc_backend.app.controllers.auth.schemas import UserRegistrationSchema
+
+
+async def create_test_user(
+    db: AsyncSession,
     user_data = UserRegistrationSchema(
         email="test@example.com",
         username="testuser",
-        password="password123"
+        password="password123",
+        first_name="John",
+        last_name="Doe",
     )
-
+):
     return await create_user(db, user_data)
 
 
 @pytest.mark.asyncio
-async def test_controller_create_user(
-    get_test_db__fixture
-):
-    test_db = await get_test_db__fixture.__anext__()
-    assert isinstance(test_db, AsyncSession)
+async def test_send_and_confirm_email_verification_code(client_fixture):
+    # Unpack the fixture
+    async for fixture_obj in client_fixture:
+        httpx_client: AsyncClient = fixture_obj['http_client']
+        test_db: AsyncSession = fixture_obj['db']
+        break
 
-    # Define a test user
-    user_data = UserRegistrationSchema(
-        email="test@example.com",
-        username="testuser",
-        password="password123"
-    )
-    
-    # Call the create_user function
-    created_user = await create_user(test_db, user_data)
+    email = "wisdomscott98@gmail.com"
+    fullname = "crank gig"
 
-    # testing the become agent method of the user
-    await created_user.become_agent(
-        session = test_db
-    )
-    print(f'***agent_id: {created_user.agent_profile_id}')
-
-
-    # Assertions
-    assert created_user is not None
-    assert created_user.email == user_data.email
-    assert created_user.username == user_data.username
-    assert created_user.password_hash != user_data.password  # Ensure the password is hashed
-
-    ## Verify that the user was actually created in the database
-    result = await test_db.execute(
-        select(User).filter(User.email == user_data.email)
-    )
-    user = result.scalars().first()
-    assert user is not None
-    assert user.username == user_data.username
-
-
-@pytest.mark.asyncio
-async def test_route_create_user(client__fixture_with_onlyDB_fixture: tuple):
-    # fetch the client generator
-    client_gen =  client__fixture_with_onlyDB_fixture
-    # get the yield client object
-    client, test_db = await client_gen.__anext__()
-
-    # Define a post data
-    post_data = {
-        "email": "testuser@example.com",
-        "username": "testuser",
-        "password": "password123",
-    }
-
-    # Make the request using the client provided by the fixture
-    response = await client.post(
-        "/auth/register",
-        json=post_data  # Use json instead of data for a JSON body
-    )
-
-    # Assertions
-    assert response.status_code == 201
-    json_response = response.json()
-    assert json_response.get("token_type") == "bearer"
-    assert "access_token" in json_response
-
-@pytest.mark.asyncio
-async def test_route_probe_user_existence(client__fixture: AsyncClient):
-    # fetch the client generator
-    client_gen =  client__fixture
-    # get the yield client object
-    client = await client_gen.__anext__()
-
-    # Define a post data
-    post_data = {
-        "email": "testuser@example.com",
-        "username": "testuser",
-        "password": "password123",
-    }
-    # sign the user up
-    await client.post(
-        "/auth/register",
-        json=post_data  # Use json instead of data for a JSON body
-    )
-
-
-    # test 1
-    # making a request with data that exists
-    probe_data_which_exists = {
-        "email": "testuser@example.com",
-        "username": "testuser",
-    }
-    # make the request
-    response = await client.post(
-        "/auth/probe-user-existence",
-        json=probe_data_which_exists  # Use json instead of data for a JSON body
-    )
-    # Assertions
-    assert response.status_code == 200
-    json_response = response.json()
-    assert json_response.get("email") == "unavailable"
-    assert json_response.get("username") == "unavailable"
-
-
-    # test 2
-    # making a request with data that does not exists
-    probe_data_which_does_not_exist = {
-        "email": "testuser2@example.com",
-        "username": "testuser2",
-    }
-    # make the request
-    response = await client.post(
-        "/auth/probe-user-existence",
-        json=probe_data_which_does_not_exist  # Use json instead of data for a JSON body
-    )
-    # Assertions
-    assert response.status_code == 200
-    json_response = response.json()
-    assert json_response.get("email") == "available"
-    assert json_response.get("username") == "available"
-
-
-@pytest.mark.asyncio
-async def test_send_email_verification_code_hash(client__fixture: tuple):    
-    # fetch the client generator
-    client_gen =  client__fixture
-    # get the yield client object
-    client, redis_client = await client_gen.__anext__()
-
-    # Define a post data
-    post_data = {
-        "email": "crankgig@gmail.com",
-        "username": "crank",
-    }
-    # request a verification code
-    response = await client.post(
-        "/auth/send-email-verification-code",
-        json=post_data  # Use json instead of data for a JSON body
-    )
-
-    # Assertions
-    assert response.status_code == 200
-    json_response = response.json()
-    assert json_response.get("message") == "A new verification code has been sent to your email."
-
-    # make a temporary pause
-    await asyncio.sleep(60) #60 seconds; 1 minute
-
-    # request another to verify that the expiry works 
-    # the other code has expired
-    response = await client.post(
-        "/auth/send-email-verification-code",
-        json=post_data  # Use json instead of data for a JSON body
-    )    
-    # Assertions
-    assert response.status_code == 200
-    json_response = response.json()
-    assert json_response.get("message") == "A new verification code has been sent to your email."
-
-
-@pytest.mark.asyncio
-async def test_confirm_email_verification_code(client__fixture: tuple):    
-    # Fetch the client generator
-    client_gen = client__fixture
-    # Get the yield client objects
-    client, redis_client = await client_gen.__anext__()
-
-    # Define the post data for sending the email verification code
     send_code_data = {
-        "email": "wisdomscott98@gmail.com",
-        "username": "crank",
+        "email": email,
+        "fullname": fullname,
     }
 
-    # Request a verification code
-    response = await client.post(
-        "/auth/send-email-verification-code",
-        json=send_code_data  # Use json instead of data for a JSON body
+    # 1️⃣ Send verification code
+    response = await httpx_client.post(
+        "/auth/request-email-verification-code",
+        json=send_code_data
     )
-
-    # Assertions for sending the verification code
     assert response.status_code == 200
     json_response = response.json()
-    assert json_response.get("message") == "A new verification code has been sent to your email."
+    assert "expiry" in json_response
+    assert "detail" in json_response
 
-    # Retrieve the code directly from Redis (this simulates the user entering the code they received)
-    user_key = f'{send_code_data["email"]}:email_verification'
-    verification_code = await redis_client.hget(user_key, "email_verification")
-    assert verification_code is not None
+    # 2️⃣ Check that it's stored in the DB
+    stmt = await test_db.execute(
+        select(TransientVerificationStore).where(
+            TransientVerificationStore.email_address == email
+        )
+    )
+    record = stmt.scalars().first()
+    assert record is not None
+    assert record.email_code_expiry_time is not None
 
-    # ** testing the confirm_email_verification_code function
-    # ...
+    # Save the code for use in confirmation
+    code = record.email_code
+    assert code and isinstance(code, str)
 
-    # Case 1: Correct code and full name parsing
-    confirm_code_data = {
-        "email": send_code_data["email"],
-        "verification_code": verification_code.decode('utf-8'),
-        "username": "crank",
-        "fullname": "John Doe",
-        "password": "strongpassword",
-        "client_type": "Agent"
+    # 3️⃣ Try resending before expiry (should return 302)
+    response = await httpx_client.post(
+        "/auth/request-email-verification-code",
+        json=send_code_data
+    )
+    assert response.status_code == 302
+    assert response.json()['detail'] == "An email code has already been sent."
+
+    # 4️⃣ Confirm email using the correct code
+    confirm_data = {
+        "email": email,
+        "code": code,
     }
-
-    # Confirm the verification code with correct data
-    response = await client.post(
+    response = await httpx_client.post(
         "/auth/confirm-email-verification-code",
-        json=confirm_code_data  # Use json instead of data for a JSON body
+        json=confirm_data
     )
-
-    # Assertions for confirming the verification code
     assert response.status_code == 200
-    json_response = response.json()
-    assert json_response.get("email_status") == "Verified"
-    assert json_response.get("message") == "The email has been successfully verified and the user has been registered."
-    assert json_response.get("user_id") is not None  # Ensure user ID is returned
+    assert response.json()['message'] == "The email address has been successfully verified."
 
-
-    # Case 2: Expired verification code
-
-    # Try confirming again
-    response = await client.post(
+    # 5️⃣ Try confirming again (should be gone or invalid)
+    response = await httpx_client.post(
         "/auth/confirm-email-verification-code",
-        json=confirm_code_data  # Re-use the correct code data
+        json=confirm_data
     )
-    # Assertions for the expired code
     assert response.status_code == 404
-    json_response = response.json()
-    assert json_response.get("detail") == "Verification code not found or expired."
+    assert response.json()['detail'] == "Verification code not found or expired."
 
+
+@pytest.mark.asyncio
+async def test_verify_email_code_and_signup(client_fixture):
+    async for fixture_obj in client_fixture:
+        test_db: AsyncSession = fixture_obj['db']
+        httpx_client: AsyncClient = fixture_obj['http_client']
+        break
+
+    # 1️⃣ Insert dummy verification record
+    dummy_code = "1234"
+    dummy_email = 'joe@gmail.com'
+    test_pin = '123456'
+    test_name = 'Joe cole'
+
+    transient_instance = TransientVerificationStore(
+        email_address=dummy_email,
+        email_code=dummy_code,
+        email_code_expiry_time=datetime.now(timezone.utc) + timedelta(seconds=email_verification_code_ttl())
+    )
+    test_db.add(transient_instance)
+    await test_db.flush()
+
+    confirm_data = {
+        "email": dummy_email,
+        "code": dummy_code,
+        "fullname": test_name,
+        "pin": test_pin,
+
+    }
+
+    # 2️⃣ Confirm it — should succeed
+    response = await httpx_client.post(
+        "/auth/confirm-email-verification-code",
+        json=confirm_data
+    )
+    assert response.status_code == 200
+    assert response.json()['detail'] == "Email verified and user registered."
+
+    # 3️⃣ Check it's gone
+    await test_db.refresh(transient_instance)
+    assert not transient_instance
+
+    # 4️⃣ Confirm again — should now 404
+    response = await httpx_client.post(
+        "/auth/confirm-email-verification-code",
+        json=confirm_data
+    )
+    assert response.status_code == 404
+    assert response.json()['detail'] == "Verification code not found or expired."
+
+
+@pytest.mark.asyncio
+async def test_expired_verification_code_cleanup(client_fixture):
+    async for fixture_obj in client_fixture:
+        httpx_client: AsyncClient = fixture_obj['http_client']
+        test_db: AsyncSession = fixture_obj['db']
+        break
+
+    test_user = await create_test_user(test_db)
+
+    email = "cleanup@example.com"
+    fullname = "Cleanup Bot"
+    send_code_data = {
+        "email": email,
+        "fullname": fullname,
+    }
+
+    # Request verification code
+    response = await httpx_client.post(
+        "/auth/request-email-verification-code",
+        json=send_code_data
+    )
+    assert response.status_code == 200
+
+    # Manually expire the code for the test
+    stmt = await test_db.execute(
+        select(TransientVerificationStore).where(
+            TransientVerificationStore.email_address == email
+        )
+    )
+    record = stmt.scalars().first()
+    assert record
+
+    # Simulate expiration
+    record.email_code_expiry_time = datetime.utcnow()  # already expired
+    test_db.add(record)
+    await test_db.commit()
+
+    # Wait enough time for the cleanup task to run (based on task interval + buffer)
+    await asyncio.sleep(35 * 60)  # Assuming task sleeps for 30 mins after expiry
+
+    # Ensure the code is removed
+    stmt = await test_db.execute(
+        select(TransientVerificationStore).where(
+            TransientVerificationStore.email_address == email
+        )
+    )
+    cleaned_record = stmt.scalars().first()
+    assert cleaned_record is None
