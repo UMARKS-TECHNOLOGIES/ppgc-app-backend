@@ -1,14 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, model_validator, Field
 
-class TokenData(BaseModel):
-    username: str | None = None
-
-
-class UserSigninSchema(BaseModel):
-    username: Optional[str] = None
-    email: str = None
-    password: str
 
 
 class RegistrationSchema(BaseModel):
@@ -19,13 +11,13 @@ class RegistrationSchema(BaseModel):
 class RequestEmailCodeSchema(RegistrationSchema):
     pass
 
+
 class RequestEmailResponseSchema(BaseModel):
     detail: str = Field(..., description = "Success message on sending the code.")
     expiry: str = Field(..., description="Time of expiry in ISO format.")
 
 
-class VerifyEmailAndSignUserUpSchema(RegistrationSchema):
-    code: str
+class PinOrPasswordSchema(BaseModel):
     password: Optional[str] = None
     pin: Optional[str] = None
 
@@ -41,31 +33,33 @@ class VerifyEmailAndSignUserUpSchema(RegistrationSchema):
         if not check_valid:
             raise ValueError("Either of 'pin' or 'password' must be included in the payload. Both can't be empty or non-empty.")
         return values
+    
 
+class VerifyEmailAndSignUserUpSchema(RegistrationSchema, PinOrPasswordSchema):
+    code: str
 
-class UserRegistrationSchema(BaseModel):
-    email: str
-    username: str
-    password: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    #last_name: str
-    # Add other fields as needed
 
 class GenericSuccessResponseSchema(BaseModel):
     detail: str
 
-class SignupCodeVerificationSchema(UserRegistrationSchema):
-    verification_code: str
-    fullname: str
-    client_type: str
+
+class SigninSchema(PinOrPasswordSchema):
+    email: str
+
+
+class UserRegistrationSchema(BaseModel, PinOrPasswordSchema):
+    email: str
+    first_name: str
+    last_name: Optional[str] = None
+
 
 class Token(BaseModel):
     access_token: str
     token_type: str
 
+
 class SigninResponse(Token):
-    user_id: int
+    pass
 
 class TokenData(BaseModel):
     username: str | None = None

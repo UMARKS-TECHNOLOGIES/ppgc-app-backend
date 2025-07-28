@@ -5,7 +5,6 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from ppgc_backend.app.database import get_db
 from ppgc_backend.app.schemas.auth_schemas import (
     SigninResponse, 
-    UserSigninSchema, 
 )
 from .schemas import (
     RequestEmailCodeSchema,
@@ -13,13 +12,15 @@ from .schemas import (
     RequestEmailResponseSchema,
     GenericSuccessResponseSchema,
     VerifyEmailAndSignUserUpSchema,
+    SigninSchema,
 )
 from .services import (
+    signin,
     create_user, 
     authenticate_user, 
     fetched_access_token, 
     confirm_email_verification_code_and_sign_user_up,
-    verify_email_uniqueness_and_request_verification_code
+    probe_email_uniqueness_and_request_verification_code
 )
 
 
@@ -45,7 +46,7 @@ async def check_email_and_request_verification_code(
     requester_data: RequestEmailCodeSchema, 
     session: AsyncSession = Depends(get_db)
 ):
-    return await verify_email_uniqueness_and_request_verification_code(session, requester_data.model_dump())
+    return await probe_email_uniqueness_and_request_verification_code(session, requester_data.model_dump())
 
 
 # confirm email verification endpoint
@@ -66,19 +67,5 @@ async def confirm_email_verification_code(
 
 # signin endpoint
 @router.post("/signin", response_model=SigninResponse, status_code=status.HTTP_200_OK)
-async def signin_for_access_token(user_data: UserSigninSchema, db: AsyncSession = Depends(get_db)):
-    user = await authenticate_user(
-        db = db, 
-        login = user_data.email, 
-        password = user_data.password
-    )
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return {
-        **fetched_access_token(user),
-        "user_id":user.id, 
-    }
+async def signin_for_access_token(user_data: SigninSchema, session: AsyncSession = Depends(get_db)):
+    return await signin(session, user_data.model_dump())

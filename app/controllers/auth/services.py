@@ -23,12 +23,14 @@ from ppgc_backend.app.schemas.auth_schemas import (
     ProbeUserExistenceSchema,
 )
 from ppgc_backend.app.utils.store import (
-    read_email_from_html_template_name,
-    substituted_string,
     send_email,
+    substituted_string,
+    transient_email_interval,
     email_verification_code_ttl,
     transient_email_verification_ttl,
+    read_email_from_html_template_name,
 )
+from ppgc_backend.config import get_env
 from ppgc_backend.app.database import get_db
 from ppgc_backend.config.settings import DEBUG
 from ppgc_backend.config.settings import JWT_SECRET_KEY, JWT_EXPIRATION_DELTA, JWT_ALGORITHM
@@ -65,13 +67,6 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     return encoded_jwt
 
 
-def fetched_access_token(user: User):
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
-
 def fetch_access_token(user: User):
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -92,7 +87,9 @@ async def authenticate_user(db: AsyncSession, login: str, password: str):
         return False
 
     # Verify the provided password against the stored password hash
-    if not verify_password(password, user.password_hash):
+    password_verified =  verify_password(password, user.password_hash)
+    pin_verified =  verify_password(password, user.pin_hash)
+    if not (password_verified or pin_verified):    
         return False
 
     return user
@@ -230,8 +227,8 @@ async def decode_user_from_token_optional(
 
 async def email_code_cleanup_loop(
     session: AsyncSession, 
+    email_address: str,
     email_code: str,
-    check_interval_in_secs: int = 60,
 ):
     """
     Starts a background task to monitor and delete an email verification code
@@ -247,7 +244,10 @@ async def email_code_cleanup_loop(
             try:
                 result = await session.execute(
                     select(TransientVerificationStore)
-                    .where(TransientVerificationStore.email_code == email_code)
+                    .where(
+                        TransientVerificationStore.email_address == email_address,
+                        TransientVerificationStore.email_code == email_code,
+                    )
                 )
                 transient_instance = result.scalars().first()
 
@@ -256,7 +256,7 @@ async def email_code_cleanup_loop(
 
                 now = datetime.now(timezone.utc)
                 expiry = transient_instance.email_code_expiry_time
-                if now >= expiry: # modify the verified field to True
+                if now >= expiry: # Delete the expiry time
                     transient_instance.email_code_expiry_time = None
                     session.add(transient_instance)
                     await session.commit()
@@ -277,13 +277,16 @@ async def email_code_cleanup_loop(
                 if DEBUG:
                     print("❗ Error in email_code_cleanup_loop:", str(e))
 
-            await asyncio.sleep(check_interval_in_secs)
+            # time in seconds before the next check
+            await asyncio.sleep(transient_email_interval())
     
-    asyncio.create_task(run_cache_task())
+    task = asyncio.create_task(run_cache_task())
     
+    #if get_env() == 'test':
+    #    await task  # ensure cleanup before test exits
 
 # user existence
-async def verify_email_uniqueness_and_request_verification_code(session: AsyncSession, data: dict):
+async def probe_email_uniqueness_and_request_verification_code(session: AsyncSession, data: dict):
     email_address = data['email']
     fullname = data['fullname']
     
@@ -304,16 +307,18 @@ async def verify_email_uniqueness_and_request_verification_code(session: AsyncSe
         select(TransientVerificationStore)
         .where(TransientVerificationStore.email_address == email_address)
     )
-    request_instance = query.scalars().one()
-
+    request_instance = query.scalars().first()
     # raise an exception if an instance and it expiry time exists.
     if request_instance and request_instance.email_code_expiry_time:
         raise HTTPException(
             status_code = status.HTTP_302_FOUND,
-            detail = "An email code has already been sent."
+            detail = {
+                'status' : "An email code has already been sent.",
+                'expiry': request_instance.email_code_expiry_time.isoformat()
+            }
         )
 
-    code = await request_verification_code(session, email_address, fullname)
+    code = await request_verification_code(email_address, fullname)
 
     try:
         # persist code and expiry
@@ -329,7 +334,7 @@ async def verify_email_uniqueness_and_request_verification_code(session: AsyncSe
         await session.commit()
 
         # run cleanup task
-        await email_code_cleanup_loop(session, code)
+        await email_code_cleanup_loop(session, email_address, code)
 
         return {
             "detail" : f"A verification code has been sent to the email {email_address}. Also check your spam folder.",
@@ -346,7 +351,7 @@ async def verify_email_uniqueness_and_request_verification_code(session: AsyncSe
         )
 
 
-async def request_verification_code(db: AsyncSession, email_address:str, username: str):
+async def request_verification_code(email_address:str, username: str) -> str:
     
     code = '{:04d}'.format(random.randint(0, 9999))
     
@@ -360,12 +365,13 @@ async def request_verification_code(db: AsyncSession, email_address:str, usernam
         f_message = "An error occured while sending verification email"
         d_message= f"{f_message} Reason: {e}" 
         logger.error(d_message)
-        raise Exception(
+        raise HTTPException(
             status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail = f_message
         )
     
     return code
+
 
 async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).filter(User.id == user_id))
@@ -425,15 +431,16 @@ async def confirm_email_verification_code_and_sign_user_up(
     if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Verification code not found or expired."
+            detail="Verification code incorrect or expired."
         )
 
-    # Hash the user's password or pin before saving it to the database
     collection = {}
-    if data['pin']:
-        collection['pin'] = get_password_hash(data['pin'])
-    if data['password']:
-        collection['password'] = get_password_hash(data['password'])
+
+    # Hash the user's password or pin before saving it to the database
+    if 'pin' in data:
+        collection['pin_hash'] = get_password_hash(data['pin'])
+    elif 'password' in data:
+        collection['password_hash'] = get_password_hash(data['password'])
 
     # extracting names from the fullname
     name_list = data['fullname'].split()
@@ -454,14 +461,18 @@ async def confirm_email_verification_code_and_sign_user_up(
 
     try:
         # Add the new user to the session and commit the transaction
-        session.add(User(**collection))
-        await session.commit()
+        session.add(User(
+            email = data['email'],
+            **collection
+        ))
 
         # delete the verification code from Redis after successful registration
         await session.delete(record)
 
+        await session.commit()
+
         return {
-            "detail": "Email verified and user registered",
+            "detail": "Email verified and user registered.",
         }
 
     except Exception as e:
@@ -473,3 +484,19 @@ async def confirm_email_verification_code_and_sign_user_up(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while creating the user."
         )
+    
+async def signin(db:AsyncSession, user_data: dict):
+    user = await authenticate_user(
+        db = db, 
+        login = user_data['email'], 
+        password = user_data['password'] if 'password' in user_data else user_data['pin']
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return {
+        **fetch_access_token(user),
+    }

@@ -8,7 +8,9 @@ from ppgc_backend.config.settings import (
     EMAIL_VERIFICATION_CODE_TTL,
     TEST_EMAIL_VERIFICATION_CODE_TTL,
     TRANSIENT_EMAIL_VERIFICATION_TTL,
-    TEST_TRANSIENT_EMAIL_VERIFICATION_TTL
+    TEST_TRANSIENT_EMAIL_VERIFICATION_TTL,
+    TRANSIENT_EMAIL_INTERVAL,
+    TEST_TRANSIENT_EMAIL_INTERVAL,
 )
 
 
@@ -24,12 +26,11 @@ def send_email(from_email, from_name, subject, to_email,  html_email, to_name=No
     }
     return resend.Emails.send(params)
     
-    
 
 def read_email_from_html_template_name(template_name):
     try:
         # Define the package where your email templates are located
-        package = 'property_street_backend.app.utils.email_templates'
+        package = 'ppgc_backend.app.utils.email_templates'
         
         # Construct the template file name
         template_filename = f"{template_name}.html"
@@ -44,7 +45,8 @@ def read_email_from_html_template_name(template_name):
         return None
     except Exception as e:
         print(f"Error reading email template: {e}")
-        return None
+        return 
+        
 
 def substituted_string(context: str, map: dict) -> str:
     """
@@ -56,6 +58,7 @@ def substituted_string(context: str, map: dict) -> str:
     response=string_template.substitute(map)
     return response
 
+
 def email_verification_code_ttl():
     env = get_env()
     env_is_test = env == 'test'
@@ -66,12 +69,24 @@ def email_verification_code_ttl():
     )  # 5 minutes
     return expiry_time
 
+
 def transient_email_verification_ttl():
     env = get_env()
     env_is_test = env == 'test'
     expiry_time = (
-        TRANSIENT_EMAIL_VERIFICATION_TTL 
-        if env_is_test else 
         TEST_TRANSIENT_EMAIL_VERIFICATION_TTL
+        if env_is_test else 
+        TRANSIENT_EMAIL_VERIFICATION_TTL 
     )  # 5 minutes
     return expiry_time
+
+
+def transient_email_interval():
+    env = get_env()
+    env_is_test = env == 'test'
+    interval = (
+        TEST_TRANSIENT_EMAIL_INTERVAL
+        if env_is_test else 
+        TRANSIENT_EMAIL_INTERVAL
+    )
+    return interval
