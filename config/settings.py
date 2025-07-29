@@ -1,11 +1,10 @@
-from pathlib import Path
 import os
+import socket
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables from a .env file if present
 load_dotenv()
-
-environment = os.getenv("ENVIRONMENT", "development")
 
 # Base directory of the project
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -13,8 +12,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Secret key for cryptographic operations
 SECRET_KEY = os.getenv('SECRET_KEY', 'your_secret_key')
 
+# Allowed hosts for the application
+DEV_ENV_HOSTNAME=os.getenv('DEV_ENV_HOSTNAME')
+
 # Debug mode
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
+DEBUG = socket.gethostname() == DEV_ENV_HOSTNAME
 
 # Allowed hosts for the application
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
@@ -31,11 +33,6 @@ TEST_TRANSIENT_EMAIL_VERIFICATION_TTL = int(os.getenv('TEST_TRANSIENT_EMAIL_VERI
 TRANSIENT_EMAIL_INTERVAL = int(os.getenv('TRANSIENT_EMAIL_INTERVAL'))
 TEST_TRANSIENT_EMAIL_INTERVAL = int(os.getenv('TEST_TRANSIENT_EMAIL_INTERVAL'))
 
-# REDIS DB
-REDIS_CACHE_DB = int(os.getenv('REDIS_CACHE_DB', 0))
-TEST_REDIS_CACHE_DB = int(os.getenv('TEST_REDIS_CACHE_DB', 0))
-NEWLY_CREATED_ASSET_TTL = os.getenv('NEWLY_CREATED_ASSET_TTL', 2592000)
-SEARCH_UNIT_TTL = os.getenv('SEARCH_UNIT_TTL', 2592000)
 
 # CORS settings
 CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*').split(',')

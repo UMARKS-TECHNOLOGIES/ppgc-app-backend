@@ -1,93 +1,39 @@
 import pytest
-from sqlalchemy.future import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from property_street_backend.app.models import User
-from property_street_backend.app.controllers.auth import create_user, authenticate_user
-from property_street_backend.app.schemas.auth_schemas import UserRegistrationSchema
+from ppgc_backend.app.models import User
+from .test_user_creation import create_test_user
+from ppgc_backend.app.controllers.auth.schemas import UserRegistrationSchema
 
 
 @pytest.mark.asyncio
-async def test_controller_authenticate_user(client__fixture: dict):
-    # get the yield client objects
-    fixture_obj = await client__fixture.__anext__()
+async def test_route_signin(client_fixture):
+    # Extract the fixture object
+    async for fixture_obj in client_fixture:
+        test_db: AsyncSession = fixture_obj['db']
+        httpx_client: AsyncClient = fixture_obj['http_client']
+        break
     
-    test_db = fixture_obj.get("db")
-
-    # Define a test user
     user_data = UserRegistrationSchema(
         email="test@example.com",
-        username="testuser",
-        password="password123"
+        pin="password123",
+        first_name="John",
+        last_name="Doe",
     )
 
     # Call the create_user function
-    created_user = await create_user(test_db, user_data)
+    created_user = await create_test_user(test_db, user_data)
 
-    # Assertions
-    assert created_user is not None
-    assert created_user.email == user_data.email
-    assert created_user.username == user_data.username
-    assert created_user.password_hash != user_data.password  # Ensure the password is hashed
-
-    ## Verify that the user was actually created in the database
-    result = await test_db.execute(
-        select(User).filter(User.email == user_data.email)
-    )
-    user = result.scalars().first()
-    assert user is not None
-    assert user.username == user_data.username
-
-    
-    # Testing for user authentication 
-    user = await authenticate_user(
-        test_db,
-        user_data.username,
-        user_data.password
-    )
-    assert user != None
-
-
-@pytest.mark.asyncio
-async def test_route_signin(client__fixture: dict):
-    # Extract the fixture object
-    fixture_obj = await client__fixture.__anext__()
-    test_db = fixture_obj.get("db")
-    client = fixture_obj.get("http_client")
-
-    # Define a post data
-    post_data = {
-        "email": "testuser@example.com",
-        "username": "testuser",
-        "password": "password123",
-    }
-
-    user_data = UserRegistrationSchema(
-        email=post_data['email'],
-        username=post_data['username'],
-        password=post_data['password']
-    )
-
-    # Call the create_user function
-    created_user = await create_user(
-        test_db, 
-        user_data
-    )
-
-
-    signin_post_data = {
+    json_data = {
         'email': created_user.email,
-        'password': post_data.get("password")
+        'pin': user_data.pin
     }
-    response = await client.post(
+    response = await httpx_client.post(
         "/auth/signin",
-        json=signin_post_data  # Use json instead of data for a JSON body
+        json=json_data  # Use json instead of data for a JSON body
     )
-    
-    # Assertions
     assert response.status_code == 200
     json_response = response.json()
-    assert json_response.get("token_type") == "bearer"
+    assert json_response['token_type'] == "bearer"
     assert "access_token" in json_response
-    assert json_response.get("user_id") == created_user.id

@@ -17,8 +17,7 @@ from .schemas import (
 from .services import (
     signin,
     create_user, 
-    authenticate_user, 
-    fetched_access_token, 
+    fetch_access_token, 
     confirm_email_verification_code_and_sign_user_up,
     probe_email_uniqueness_and_request_verification_code
 )
@@ -33,7 +32,7 @@ async def register_user(user_data: UserRegistrationSchema, db: AsyncSession = De
         user = await create_user(db, user_data)
     except HTTPException as e:
         raise e
-    return fetched_access_token(user)
+    return fetch_access_token(user)
 
 
 # request email verification for signup endpoint

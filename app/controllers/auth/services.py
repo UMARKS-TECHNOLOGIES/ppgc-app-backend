@@ -30,7 +30,6 @@ from ppgc_backend.app.utils.store import (
     transient_email_verification_ttl,
     read_email_from_html_template_name,
 )
-from ppgc_backend.config import get_env
 from ppgc_backend.app.database import get_db
 from ppgc_backend.config.settings import DEBUG
 from ppgc_backend.config.settings import JWT_SECRET_KEY, JWT_EXPIRATION_DELTA, JWT_ALGORITHM
@@ -75,7 +74,7 @@ def fetch_access_token(user: User):
     return {"access_token": access_token, "token_type": "bearer"}
 
 # signin
-async def authenticate_user(db: AsyncSession, login: str, password: str):
+async def authenticate_user(db: AsyncSession, login: str, **kwargs):
     # Check if the login is either a username or an email
     user_query = select(User).filter((User.username == login) | (User.email == login))
     
@@ -85,11 +84,17 @@ async def authenticate_user(db: AsyncSession, login: str, password: str):
 
     if not user:
         return False
+    
+    password = kwargs.get('password')
+    pin = kwargs.get('pin')
 
-    # Verify the provided password against the stored password hash
-    password_verified =  verify_password(password, user.password_hash)
-    pin_verified =  verify_password(password, user.pin_hash)
-    if not (password_verified or pin_verified):    
+    # Verify the provided password against the stored password/pin hash
+    verified =  (verify_password(password, user.password_hash)
+        if (user.password_hash and password)
+        else verify_password(pin, user.pin_hash)
+    )
+    
+    if not verified:  
         return False
 
     return user
@@ -138,27 +143,23 @@ async def create_user(
     db: AsyncSession, 
     user_data: UserRegistrationSchema
 ):
-    username = user_data.username or user_data.email.strip().split('@')[0]
     existing_user = await db.execute(
-        select(User).filter((User.email == user_data.email) | (User.username == username))
+        select(User).filter(User.email == user_data.email)
     )
     existing_user = existing_user.scalars().first()
     
     if existing_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email or Username already exists")
 
-    hashed_password = get_password_hash(user_data.password)
-    # clone the model so deleting the password entry wont affect the original schema
-    cloned_data = user_data.model_copy()
-    # convert the user_data to a dictionary
-    user_map = vars(cloned_data)
-    # remove the password field
-    user_map.pop('password')
+    user_data_to_dict = user_data.model_dump(exclude={"password", "pin"})
+    if user_data.pin:
+        user_data_to_dict['pin_hash'] = get_password_hash(user_data.pin)
+    elif user_data.password:
+        user_data_to_dict['password_hash'] = get_password_hash(user_data.password)
 
     # instantiate a user object
     user = User(
-        password_hash=hashed_password,
-        **user_map,
+        **user_data_to_dict,
     )
     
     try:
@@ -172,8 +173,6 @@ async def create_user(
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error occurred")
     
-    # Ensure the user instance reflects the latest state from the database
-    await db.refresh(user)
     return user
 
 
@@ -486,17 +485,32 @@ async def confirm_email_verification_code_and_sign_user_up(
         )
     
 async def signin(db:AsyncSession, user_data: dict):
-    user = await authenticate_user(
-        db = db, 
-        login = user_data['email'], 
-        password = user_data['password'] if 'password' in user_data else user_data['pin']
-    )
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+    try:
+        pin_or_password_map = {}
+        if 'pin' in user_data:
+            pin_or_password_map['pin'] = user_data['pin']
+        elif 'password' in user_data:
+            pin_or_password_map['password'] = user_data['password']
+
+        user = await authenticate_user(
+            db = db, 
+            login = user_data['email'], 
+            **pin_or_password_map
         )
-    return {
-        **fetch_access_token(user),
-    }
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return {
+            **fetch_access_token(user),
+        }
+    except Exception as e:
+        f_message = 'An error occured while signing user in!'
+        d_err_message = f'An error occured while signing user in! Reason:{e}'
+        logger.error(d_err_message)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail = f_message
+        )

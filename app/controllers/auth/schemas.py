@@ -47,7 +47,7 @@ class SigninSchema(PinOrPasswordSchema):
     email: str
 
 
-class UserRegistrationSchema(BaseModel, PinOrPasswordSchema):
+class UserRegistrationSchema(PinOrPasswordSchema):
     email: str
     first_name: str
     last_name: Optional[str] = None

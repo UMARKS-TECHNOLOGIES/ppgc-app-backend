@@ -1,22 +1,14 @@
 import pytest
-import asyncio
 from httpx import AsyncClient
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timedelta, timezone
 
 
-from ppgc_backend.config.settings import (
-    TEST_EMAIL_VERIFICATION_CODE_TTL, 
-    TEST_TRANSIENT_EMAIL_VERIFICATION_TTL
-)
 from ppgc_backend.app.models import User, TransientVerificationStore
 from ppgc_backend.app.controllers.auth.schemas import UserRegistrationSchema
 from ppgc_backend.app.controllers.auth.services import (
     create_user, 
     verify_password,
-    get_password_hash,
-    email_code_cleanup_loop, 
 )
 
 
@@ -24,8 +16,7 @@ async def create_test_user(
     db: AsyncSession,
     user_data = UserRegistrationSchema(
         email="test@example.com",
-        username="testuser",
-        password="password123",
+        pin="password123",
         first_name="John",
         last_name="Doe",
     )
