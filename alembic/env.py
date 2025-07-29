@@ -1,14 +1,19 @@
-from logging.config import fileConfig
-
-from sqlalchemy import engine_from_config
 from sqlalchemy import pool
-
 from alembic import context
+from logging.config import fileConfig
+from sqlalchemy import engine_from_config
 
 
-from ppgc_backend.config.postgres_connection_manager import Base  # Adjust this import as needed
 from ppgc_backend.app.models import *  # Import all models to ensure they're registered
+from ppgc_backend.config.settings import (
+    DEBUG,
+    DEV_DATABASE_URL,
+    PROD_DATABASE_URL
+)
+from ppgc_backend.config.postgres_connection_manager import Base  # Adjust this import as needed
 
+
+DB_URL = DEV_DATABASE_URL if DEBUG else PROD_DATABASE_URL
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -43,7 +48,8 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = DB_URL or config.get_main_option("sqlalchemy.url")
+
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -62,6 +68,9 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    url = DB_URL or config.get_main_option("sqlalchemy.url")
+    config.set_main_option("sqlalchemy.url", url)
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

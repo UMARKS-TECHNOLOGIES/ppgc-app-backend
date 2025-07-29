@@ -22,7 +22,7 @@ from ppgc_backend.app.initiator import (
     app, 
 )
 from ppgc_backend.config.settings import (
-    environment,
+    DEBUG,
     CORS_ORIGINS
 )
 
@@ -39,6 +39,8 @@ app.add_middleware(
 # Include celery app
 
 home_router = APIRouter()
+
+environment = 'DEVELOPMENT' if DEBUG else 'PRODUCTION'
 
 @home_router.get("/")
 def read_root():

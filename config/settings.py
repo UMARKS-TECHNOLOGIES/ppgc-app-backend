@@ -22,9 +22,10 @@ DEBUG = socket.gethostname() == DEV_ENV_HOSTNAME
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
 
 # SQLAlchemy database configuration for PostgreSQL
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql+asyncpg://user:password:5432@localhost/dbname')
+DEV_DATABASE_URL = os.getenv('DEV_DATABASE_URL')
+TEST_DATABASE_URL = os.getenv('TEST_DATABASE_URL')
+PROD_DATABASE_URL = os.getenv('PROD_DATABASE_URL')
 
-TEST_DATABASE_URL = os.getenv('TEST_DATABASE_URL', 'postgresql+asyncpg://user:password@localhost/dbname')
 
 EMAIL_VERIFICATION_CODE_TTL = int(os.getenv('EMAIL_VERIFICATION_CODE_TTL'))
 TEST_EMAIL_VERIFICATION_CODE_TTL = int(os.getenv('TEST_EMAIL_VERIFICATION_CODE_TTL'))
