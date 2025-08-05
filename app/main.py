@@ -81,4 +81,5 @@ app.include_router(auth_routes.router)
 # app.include_router(search.router)
 # app.include_router(settings.router)
 # app.include_router(roi.router)
-# app.include_router(home_router)
+if DEBUG:
+    app.include_router(home_router)

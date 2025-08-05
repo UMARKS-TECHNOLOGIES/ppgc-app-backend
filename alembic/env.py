@@ -13,7 +13,8 @@ from ppgc_backend.config.settings import (
 from ppgc_backend.config.postgres_connection_manager import Base  # Adjust this import as needed
 
 
-DB_URL = DEV_DATABASE_URL if DEBUG else PROD_DATABASE_URL
+URL = DEV_DATABASE_URL if DEBUG else PROD_DATABASE_URL
+DB_URL = URL.replace('postgresql+asyncpg','postgresql')
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
