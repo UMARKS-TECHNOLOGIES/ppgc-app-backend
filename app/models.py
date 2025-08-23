@@ -18,6 +18,7 @@ from ppgc_backend.app.enums import (
 from ppgc_backend.app.controllers.actors.models import User
 from ppgc_backend.config.postgres_connection_manager import Base
 from ppgc_backend.app.controllers.properties.models import Property
+from ppgc_backend.app.controllers.inspection.models import Inspection
 from ppgc_backend.app.controllers.ratings.utils import AggregateRatingAClass
 from ppgc_backend.app.controllers.investments.models import Investment, InvestmentTransaction
 
@@ -105,5 +106,6 @@ models = [
     User,
     Property,
     Investment, 
+    Inspection,
     InvestmentTransaction,
 ]

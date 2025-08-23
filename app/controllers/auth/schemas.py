@@ -62,7 +62,7 @@ class SigninResponse(Token):
     pass
 
 class TokenData(BaseModel):
-    username: str | None = None
+    email: str | None = None
 
 class UserResponseSchema(BaseModel):
     id: int

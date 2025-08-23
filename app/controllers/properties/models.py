@@ -21,11 +21,9 @@ class Property(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
-    country = Column(String, nullable=False)
-    address = Column(String, nullable=False)
     currency = Column(String, nullable=False)
     status = Column(String, nullable=False)
-    amount = Column(Numeric, nullable=False)
+    price = Column(Numeric, nullable=False)
     lease_duration = Column(String, nullable=True)
     description = Column(Text, nullable=True)
     has_features = Column(Boolean, default=False)

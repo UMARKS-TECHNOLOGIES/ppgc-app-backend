@@ -12,14 +12,12 @@ from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, APIRouter, HTTPException, status, Depends
 
 
-from .schemas import TokenData  # if using a TokenData schema
 from ppgc_backend.app.models import (
     User,
     TransientVerificationStore
 )
 from .schemas import UserRegistrationSchema
 from ppgc_backend.app.schemas.auth_schemas import (
-    TokenData, 
     ProbeUserExistenceSchema,
 )
 from ppgc_backend.app.utils.store import (
@@ -69,7 +67,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 def fetch_access_token(user: User):
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data={"sub": user.email}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -128,8 +126,8 @@ async def check_username_email_availability(db: AsyncSession, user_data: ProbeUs
 
 
 def require_roles(*allowed_roles: List[str]) -> Callable:
-    async def wrapper(current_user: TokenData = Depends(decode_user_from_token)):
-        if current_user.role not in allowed_roles:
+    async def wrapper(current_user: User = Depends(decode_user_from_token)):
+        if current_user.user_role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to perform this action"
@@ -164,10 +162,6 @@ async def create_user(
     
     try:
         db.add(user)
-        # Writes changes to the database but does not commit them.
-        # Ensure the user is added and has an ID
-        await db.flush()  
-        # Commit the transaction to make changes permanent
         await db.commit()  
     except IntegrityError:
         await db.rollback()
@@ -186,16 +180,16 @@ async def decode_user_from_token(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    email = None
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
+        email: str = payload.get("sub")
+        if email is None:
             raise credentials_exception
-        token_data = TokenData(username=username)
     except JWTError:
         raise credentials_exception
     
-    result = await db.execute(select(User).filter(User.username == token_data.username))
+    result = await db.execute(select(User).filter(User.email == email))
     user = result.scalars().first()
     if user is None:
         raise credentials_exception
@@ -212,14 +206,14 @@ async def decode_user_from_token_optional(
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if not username:
+        email: str = payload.get("sub")
+        if not email:
             return None
     except JWTError:
         return None
 
     # Query the user in the database
-    result = await db.execute(select(User).filter(User.username == username))
+    result = await db.execute(select(User).filter(User.username == email))
     user = result.scalars().first()
     return user
 
@@ -344,7 +338,7 @@ async def probe_email_uniqueness_and_request_verification_code(session: AsyncSes
         f_message = "An error occured while registering user."
         d_message= f"{f_message} Reason: {e}" 
         logger.error(d_message)
-        raise Exception(
+        raise HTTPException(
             status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail = f_message
         )

@@ -26,13 +26,13 @@ from .services import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 # user registeration endpoint
-@router.post("/register", status_code=status.HTTP_201_CREATED)
-async def register_user(user_data: UserRegistrationSchema, db: AsyncSession = Depends(get_db)):
-    try:
-        user = await create_user(db, user_data)
-    except HTTPException as e:
-        raise e
-    return fetch_access_token(user)
+# @router.post("/register", status_code=status.HTTP_201_CREATED)
+# async def register_user(user_data: UserRegistrationSchema, db: AsyncSession = Depends(get_db)):
+#     try:
+#         user = await create_user(db, user_data)
+#     except HTTPException as e:
+#         raise e
+#     return fetch_access_token(user)
 
 
 # request email verification for signup endpoint
@@ -54,7 +54,7 @@ async def check_email_and_request_verification_code(
     status_code=status.HTTP_200_OK,
     response_model=GenericSuccessResponseSchema
 )
-async def confirm_email_verification_code(
+async def confirm_email_verification_code_and_signup(
     requester_data: VerifyEmailAndSignUserUpSchema, 
     session: AsyncSession = Depends(get_db),
 ):

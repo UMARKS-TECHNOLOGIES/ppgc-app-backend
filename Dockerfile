@@ -21,5 +21,7 @@ COPY . /app/ppgc_backend
 COPY alembic.ini ./alembic.ini
 COPY ./alembic ./alembic
 
+EXPOSE 8000
+
 # Run migrations and start the app
-CMD ["sh", "-c", "alembic upgrade head && fastapi run ppgc_backend/app/main.py --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn ppgc_backend.app.main:app --host 0.0.0.0 --port 8000"]

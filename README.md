@@ -7,7 +7,7 @@ git push -u origin crank-branch
 
 ## Starting the development server
 ```
-fastapi run --port 8080
+uvicorn app.main:app [--port 8001] [--reload]
 ```
 
 ## Starting the redis server
@@ -59,24 +59,8 @@ alembic current
 alembic history
 ```
 
-## Generate SQL Scripts for Migrations
-```bash
-alembic upgrade <revision_or_head> --sql > <path/to/migration.sql>
-```
-- Replace <revision_or_head> with:
-    A specific migration revision (e.g., 1234abcd).
-    head for the latest migration.
-### temporarily copy to the container's tmp directory
-```bash
-docker cp /local_path/to/migration_script.sql <container_name>:/tmp/migration_script.sql
-```
-### Migate the database using the copied SQL Scripts
-```bash
-docker exec -it <db_container> \
-  bash -c 'PGPASSWORD=<password> psql -h <hostname> -U <username> -d <database> -f /tmp/migration_script.sql'
-```
 
 ## build image to docker hub repo
-docker build -t crankgig/<docker_hub_rep> .
+docker build -t crankgig/ppgc_fastapi .
 ### push the image to docker hub
-docker push crankgig/<docker_hub_rep>
+docker push crankgig/ppgc_fastapi

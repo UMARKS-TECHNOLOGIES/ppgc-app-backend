@@ -9,15 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 
 from ppgc_backend.app.controllers.auth import routes as auth_routes
+from ppgc_backend.app.controllers.inspection import routes as inspection_routes
 from ppgc_backend.app.database import (
     get_db,
 )
-# from ppgc_backend.app.routers import (
-#     activity,
-#     search,
-#     settings,
-#     roi,
-# )
 from ppgc_backend.app.initiator import (
     app, 
 )
@@ -77,6 +72,7 @@ async def test_database(
 
 # Include routers
 app.include_router(auth_routes.router)
+app.include_router(inspection_routes.router)
 # app.include_router(activity.router)
 # app.include_router(search.router)
 # app.include_router(settings.router)

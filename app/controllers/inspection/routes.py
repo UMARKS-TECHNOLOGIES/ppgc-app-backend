@@ -43,7 +43,7 @@ async def list_all_inspections(
         select(Inspection)
         .options(
             selectinload(Inspection.requester),
-            selectinload(Inspection.asset)
+            selectinload(Inspection.property)
         )
         .order_by(Inspection.id.desc())
         .offset(offset)
@@ -66,7 +66,7 @@ async def list_user_inspections(
         .where(Inspection.requester_id == user.id)
         .options(
             selectinload(Inspection.requester),
-            selectinload(Inspection.asset)
+            selectinload(Inspection.property)
         )
         .order_by(Inspection.id.desc())
         .offset(offset)
@@ -86,7 +86,7 @@ async def get_inspection(
     inspection = await db.get(Inspection, inspection_id)
 
     if not inspection:
-        raise HTTPException(status_code=404, detail="Inspection not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inspection not found")
 
     # Permission check: must be owner or staff/admin
     if user.user_role == "user":
@@ -107,7 +107,7 @@ async def delete_inspection(
 ):
     inspection = await db.get(Inspection, inspection_id)
     if not inspection:
-        raise HTTPException(status_code=404, detail="Inspection not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inspection not found")
 
     is_owner = inspection.requester_id == user.id
     is_admin_or_staff = user.user_role in ("admin", "staff")
@@ -123,28 +123,28 @@ async def delete_inspection(
 async def update_inspection(
     inspection_id: int,
     update_data: InspectionUpdate,
-    db: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_db),
     user: User = Depends(decode_user_from_token)
 ):
-    inspection = await db.get(Inspection, inspection_id)
+    inspection = await session.get(Inspection, inspection_id)
     if not inspection:
-        raise HTTPException(status_code=404, detail="Inspection not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inspection not found")
 
     is_owner = inspection.requester_id == user.id
     is_admin_or_staff = user.user_role in ("admin", "staff")
 
     if not (is_owner or is_admin_or_staff):
-        raise HTTPException(status_code=403, detail="Not authorized to update this inspection")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this inspection")
 
     if inspection.status != "pending":
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only inspections with status 'pending' can be modified"
         )
 
     for field, value in update_data.model_dump(exclude_unset=True).items():
         setattr(inspection, field, value)
 
-    await db.commit()
-    await db.refresh(inspection)
+    await session.commit()
+    await session.refresh(inspection)
     return inspection
