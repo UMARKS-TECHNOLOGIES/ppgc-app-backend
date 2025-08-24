@@ -3,10 +3,17 @@ from sqlalchemy.future import select
 from fastapi import HTTPException
 
 from .models import Hotel, Room
+from .schemas import HotelCreate
+from ppgc_backend.app.models import Area
 
-async def create_hotel(db: AsyncSession, hotel_data: dict):
+async def create_hotel(db: AsyncSession, hotel_data: HotelCreate):
     """Creates a new hotel."""
-    hotel = Hotel(**hotel_data)
+    _hotel_data = hotel_data.model_dump()
+    area_data = _hotel_data.pop('area') 
+    hotel = Hotel(
+        **_hotel_data,
+        area = Area(**area_data)
+    )
     db.add(hotel)
     await db.commit()
     await db.refresh(hotel)
@@ -15,8 +22,8 @@ async def create_hotel(db: AsyncSession, hotel_data: dict):
 
 async def get_hotel(db: AsyncSession, hotel_id: int):
     """Fetch a hotel by ID."""
-    result = await db.execute(select(Hotel).filter(Hotel.id == hotel_id))
-    hotel = result.scalars().first()
+    result = await db.execute(select(Hotel).where(Hotel.id == hotel_id))
+    hotel = result.scalars().one_or_none()
     if not hotel:
         raise HTTPException(status_code=404, detail="Hotel not found")
     return hotel

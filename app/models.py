@@ -9,7 +9,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.future import select
 from sqlalchemy import types as _types
-from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ppgc_backend.app.enums import (
@@ -17,9 +16,10 @@ from ppgc_backend.app.enums import (
 )
 from ppgc_backend.app.controllers.actors.models import User
 from ppgc_backend.config.postgres_connection_manager import Base
+from ppgc_backend.app.controllers.bookings.models import Booking
+from ppgc_backend.app.controllers.hotels.models import Hotel, Room
 from ppgc_backend.app.controllers.properties.models import Property
 from ppgc_backend.app.controllers.inspection.models import Inspection
-from ppgc_backend.app.controllers.ratings.utils import AggregateRatingAClass
 from ppgc_backend.app.controllers.investments.models import Investment, InvestmentTransaction
 
 # cascade="all, delete-orphan"
@@ -86,7 +86,7 @@ class TransientVerificationStore(Base):
 
 
 
-class Area(AggregateRatingAClass):
+class Area(Base):
     __tablename__ = 'areas'
 
     id = Column(Integer, primary_key=True, index=True)
@@ -104,6 +104,9 @@ class Area(AggregateRatingAClass):
 
 models = [
     User,
+    Room,
+    Hotel,
+    Booking,
     Property,
     Investment, 
     Inspection,

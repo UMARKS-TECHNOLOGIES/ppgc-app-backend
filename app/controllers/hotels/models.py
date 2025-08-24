@@ -4,7 +4,6 @@ from sqlalchemy import (
     Float, 
     String, 
     Column, 
-    Boolean,
     Integer, 
     DateTime,
     ForeignKey, 
@@ -14,12 +13,12 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 
-
 from .enums import RoomType
 from ppgc_backend.config.postgres_connection_manager import Base
+from ppgc_backend.app.controllers.ratings.utils import AggregateRatingAClass
 
 
-class Hotel(Base):
+class Hotel(AggregateRatingAClass):
     __tablename__ = "hotels"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -28,18 +27,13 @@ class Hotel(Base):
 
     created_at = Column(DateTime(timezone=True), default=func.now())
     updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
-    cover_image_url = Column(String(1024), nullable=False)
-    other_image_urls = Column(JSONB)
+    cover_image = Column(JSONB, nullable=False, default=dict) # {secure_url: str, public_id: str}
+    other_images = Column(JSONB) #[{secure_url: str, public_id: str},]
 
     rooms = relationship(
         "Room", 
         back_populates="hotel", 
         cascade="all, delete-orphan",
-        lazy='selectin'
-    )
-    bookings = relationship(
-        "Booking", 
-        back_populates="hotel",
         lazy='selectin'
     )
 
@@ -54,23 +48,9 @@ class Hotel(Base):
     ) 
     area = relationship(
         "Area",
-        back_populates="hotels",
+        backref="hotel",
         lazy="selectin",
         uselist=False # one-to-one relationship
-    )
-
-    rating_id = Column(
-        Integer,
-        ForeignKey(
-            "ratings.id", 
-            name="fk_hotels_ratings",
-            ondelete="SET NULL"
-        ),
-    )
-    ratings = relationship( 
-        "Rating",
-        back_populates="hotel",
-        lazy="selectin",
     )
 
     @hybrid_property

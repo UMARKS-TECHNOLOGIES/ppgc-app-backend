@@ -2,20 +2,16 @@ from sqlalchemy import (
     func,
     Enum as SQLAlchemyEnum, 
     Float, 
-    String, 
     Column, 
-    Boolean,
     Integer, 
     DateTime,
     ForeignKey, 
     event
 )
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.ext.hybrid import hybrid_property
 
 
-from .schemas import BookingStatus
+from .enums import BookingStatus
 from ppgc_backend.config.postgres_connection_manager import Base
 
 
@@ -29,8 +25,9 @@ class Booking(Base):
     total_price = Column(Float, nullable=False)
     status = Column(SQLAlchemyEnum(BookingStatus), default=BookingStatus.pending, nullable=False)
 
+    created_at = Column(DateTime(timezone=True), default=func.now())
     updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
-
+    
     booker_id = Column(
         Integer, 
         ForeignKey(
@@ -42,23 +39,7 @@ class Booking(Base):
     )
     booker = relationship(
         "User", 
-        back_populates="bookings",
-        lazy="selectin",
-    )
-
-    # Relationship to hotel
-    hotel_id = Column(
-        Integer, 
-        ForeignKey(
-            "hotels.id", 
-            name="fk_bookings_hotels",
-            ondelete="CASCADE"
-        ), 
-        nullable=False
-    )
-    hotel = relationship(
-        "Hotel", 
-        back_populates="bookings",
+        backref="bookings",
         lazy="selectin",
     )
 
@@ -73,7 +54,7 @@ class Booking(Base):
     )
     room = relationship(
         "Room", 
-        back_populates="bookings",
+        back_populates="booking",
         lazy='selectin',
         uselist = False
     )

@@ -7,6 +7,12 @@ from pydantic import BaseModel, ConfigDict
 from ppgc_backend.app.schemas.area_schema import AreaSchema
 from ppgc_backend.app.controllers.ratings.schemas import RatingResponseSchema
 
+class OptionalBaseModel(BaseModel):
+    """Automatically makes all fields optional in subclasses."""
+    def __init_subclass__(cls, **kwargs):
+        for field in cls.__annotations__:
+            cls.__annotations__[field] = Optional[cls.__annotations__[field]]
+
 
 class RoomTypeEnum(str, Enum):
     SINGLE = "single"
@@ -15,13 +21,16 @@ class RoomTypeEnum(str, Enum):
     DELUXE = "deluxe"
     FAMILY = "family"
 
+class HotelImageFmt(BaseModel):
+    public_id: str
+    secure_url: str
 
 class HotelBase(BaseModel):
     name: str
     area: AreaSchema
     description: Optional[str] = None
-    cover_image_url: str
-    other_image_urls: Optional[list[str]] = None
+    cover_image: HotelImageFmt
+    other_images: Optional[list[HotelImageFmt]] = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -29,12 +38,17 @@ class HotelBase(BaseModel):
 class HotelCreate(HotelBase):
     pass
 
+class HotelUpdate(OptionalBaseModel):
+    name: Optional[str] = None
+    area: Optional[AreaSchema] = None
+    description: Optional[str] = None
+    cover_image: Optional[HotelImageFmt] = None
+    other_images: Optional[list[HotelImageFmt]] = None
+
 class HotelResponse(HotelBase):
     id: int
     created_at: datetime
     total_rooms: int
-    ratings: Optional[list[RatingResponseSchema]]
-
 
 class RoomBase(BaseModel):
     room_type: RoomTypeEnum

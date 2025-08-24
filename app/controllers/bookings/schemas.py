@@ -1,17 +1,10 @@
-import enum
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
+from .enums import BookingStatus
 from .models import Booking
 from ppgc_backend.app.controllers.hotels.schemas import RoomResponse
-
-class BookingStatus(str, enum.Enum):
-    PENDING = "pending"
-    CONFIRMED = "confirmed"
-    CANCELED = "canceled"
-    COMPLETED = "completed"
-
 
 class BookingBase(BaseModel):
     total_price: float
