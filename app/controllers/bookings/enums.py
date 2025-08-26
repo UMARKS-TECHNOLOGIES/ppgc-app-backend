@@ -3,5 +3,5 @@ import enum
 class BookingStatus(str, enum.Enum):
     pending = "pending"
     confirmed = "confirmed"
-    cancelled = "canceled"
+    canceled = "canceled"
     completed = "completed"

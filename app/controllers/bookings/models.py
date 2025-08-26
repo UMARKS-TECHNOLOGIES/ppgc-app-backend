@@ -21,11 +21,11 @@ class Booking(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     check_in = Column(DateTime(timezone=True), default=func.now())
-    check_out = Column(DateTime, nullable=False)
+    check_out = Column(DateTime(timezone=True), nullable=False)
     total_price = Column(Float, nullable=False)
     status = Column(SQLAlchemyEnum(BookingStatus), default=BookingStatus.pending, nullable=False)
+    guests = Column(Integer, nullable=False, default=1)
 
-    created_at = Column(DateTime(timezone=True), default=func.now())
     updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
     
     booker_id = Column(
