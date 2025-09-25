@@ -17,9 +17,7 @@ from ppgc_backend.app.models import (
     TransientVerificationStore
 )
 from .schemas import UserRegistrationSchema
-from ppgc_backend.app.schemas.auth_schemas import (
-    ProbeUserExistenceSchema,
-)
+from ppgc_backend.config import env_is_test
 from ppgc_backend.app.utils.store import (
     send_email,
     substituted_string,
@@ -29,8 +27,18 @@ from ppgc_backend.app.utils.store import (
     read_email_from_html_template_name,
 )
 from ppgc_backend.app.database import get_db
-from ppgc_backend.config.settings import DEBUG
-from ppgc_backend.config.settings import JWT_SECRET_KEY, JWT_EXPIRATION_DELTA, JWT_ALGORITHM
+from ppgc_backend.config.settings import (
+    DEBUG,
+    JWT_ALGORITHM,
+    JWT_SECRET_KEY, 
+    PASSWORD_RESET_TTL,
+    JWT_EXPIRATION_DELTA, 
+    TEST_PASSWORD_RESET_TTL,
+)
+from ppgc_backend.app.schemas.auth_schemas import (
+    ProbeUserExistenceSchema,
+)
+from ppgc_backend.app.enums import EmailManagementReasonChoice
 
 
 import logging
@@ -478,6 +486,7 @@ async def confirm_email_verification_code_and_sign_user_up(
             detail="An error occurred while creating the user."
         )
     
+
 async def signin(db:AsyncSession, user_data: dict):
     try:
         pin_or_password_map = {}
@@ -508,3 +517,172 @@ async def signin(db:AsyncSession, user_data: dict):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail = f_message
         )
+
+
+async def register_admin():
+    pass
+    
+def get_password_reset_ttl():
+    return TEST_PASSWORD_RESET_TTL if env_is_test() else PASSWORD_RESET_TTL
+
+
+async def send_password_reset_mail(
+    email: str, 
+    session: AsyncSession,
+    ttl_in_secs: int = get_password_reset_ttl(),
+):
+    """
+        `email:reason` is the hset's key 
+        the reason is the field
+        the code is the value
+    """
+    query = await session.execute(
+        select(User)
+        .where(User.email == email)
+    )
+    user = query.scalars().one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found!"
+        )
+
+    reason = EmailManagementReasonChoice.password_change.value
+
+    # Check if the code exists in the cache
+    query = await session.execute(
+        select(TransientVerificationStore)
+        .where(
+            TransientVerificationStore.email_address == email,
+            TransientVerificationStore.reason == reason
+        )
+    )
+    reset_instance = query.scalars().first()
+
+    if reset_instance: #When a result is found
+        raise HTTPException(
+            status_code=status.HTTP_302_FOUND,
+            detail = {
+                "message" : "Please wait before requesting a new password link.",
+                "expiry" : reset_instance.email_code_expiry_time
+                }
+        )
+    else: # When no result is found
+        try:
+            # Generate a new five-digit code
+            code = '{:05d}'.format(random.randint(0, 9999))
+
+            # call the email function and send the email
+            # extract the email content from the template
+            email_template_content = read_email_from_html_template_name('password_reset_template')
+            prince_paradise_address = "Port Harcourt"
+            
+            email_string = substituted_string(
+                email_template_content,
+                {
+                    "reset_code":code,
+                    "prince_paradise_address": prince_paradise_address
+                }
+            )
+            from_address="team@stackfinancialsolutions.com"
+            subject="PPGC Verification Code"
+            from_name="Prince Paradise"
+            #to_name="Customer"
+
+            send_email(
+                from_email=from_address,
+                to_email=email,
+                from_name=from_name,
+                subject=subject,
+                html_email=email_string
+            )
+
+            # create an instance of the user with the data
+            transient_instance = TransientVerificationStore(
+                email_address = email,
+                reason = reason,
+                email_code=code
+            )
+            session.add(transient_instance)
+            await session.flush()
+
+            # get the time created and add the expiry
+            await session.refresh(transient_instance)
+            expiry_time = transient_instance.created_at + timedelta(seconds=ttl_in_secs)
+            transient_instance.email_code_expiry_time = expiry_time
+            await session.commit()
+
+            # run cleanup task
+            await email_code_cleanup_loop(session, email, code)
+
+            return {
+                "detail":"Password reset email sent!",
+                "expiry": expiry_time.isoformat()
+            }
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Something went wrong sending a password reset mail. Please try again later.",
+                headers={"X-Error": "Server error"},
+            )
+        
+
+async def change_pin_or_password(
+    session: AsyncSession,
+    **kwargs,
+):
+    password = kwargs.get('password',None)
+    pin = kwargs.get('pin',None)
+    code = kwargs.get('code')
+    email = kwargs.get('email')
+
+    query = await session.execute(
+        select(TransientVerificationStore)
+        .where(
+            TransientVerificationStore.email_address == email,
+            TransientVerificationStore.email_code == code,
+        )
+    )
+    transient_instance = query.scalars().first()
+
+    now = datetime.now(timezone.utc)
+
+    if not transient_instance or transient_instance.email_code_expiry_time < now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Password/Pin Request either expired or not initiated!'
+        )
+
+    # check that password ain't same
+    result = await authenticate_user(session, email, {'password':password,'pin':pin})
+    if result:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New Password/Pin can't be same as old."
+        )
+    else:
+        query = await session.execute(
+            select(User)
+            .where(User.email == email)
+        )
+        user = query.scalars().first()
+        if not user:
+            if DEBUG:
+                logger.info(f'**User not found')
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Subject for Password/Pin change not found!"
+            )
+        
+        if password:
+            hash = get_password_hash(password)
+            user.password_hash = hash
+        elif pin:
+            hash = get_password_hash(pin)
+            user.pin_hash = hash
+        session.add(user)
+        await session.commit()
+
+        # delete the transient instance
+        await session.delete(transient_instance)
+        await session.commit()

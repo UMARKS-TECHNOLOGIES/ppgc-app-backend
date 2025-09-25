@@ -70,3 +70,14 @@ class UserResponseSchema(BaseModel):
     username: str
 
     model_config = ConfigDict(from_attributes=True)
+
+class PasswordResetSchema(PinOrPasswordSchema):
+    email: str
+    code: str
+
+class SendPasswordResetMail(BaseModel):
+    detail: str
+    expiry: str
+
+class Email(BaseModel):
+    email: str

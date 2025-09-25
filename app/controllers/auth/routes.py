@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Body
 
 
 from ppgc_backend.app.database import get_db
@@ -13,13 +13,17 @@ from .schemas import (
     GenericSuccessResponseSchema,
     VerifyEmailAndSignUserUpSchema,
     SigninSchema,
+    PasswordResetSchema,
+    SendPasswordResetMail,
+    Email,
 )
 from .services import (
     signin,
-    create_user, 
-    fetch_access_token, 
+    create_user,
+    change_pin_or_password, 
+    send_password_reset_mail,
     confirm_email_verification_code_and_sign_user_up,
-    probe_email_uniqueness_and_request_verification_code
+    probe_email_uniqueness_and_request_verification_code,
 )
 
 
@@ -68,3 +72,22 @@ async def confirm_email_verification_code_and_signup(
 @router.post("/signin", response_model=SigninResponse, status_code=status.HTTP_200_OK)
 async def signin_for_access_token(user_data: SigninSchema, session: AsyncSession = Depends(get_db)):
     return await signin(session, user_data.model_dump())
+
+
+@router.post("/send-password-reset-mail", response_model=SendPasswordResetMail)
+async def send_password_reset_mail_endpoint(
+    data: Email = Body(...),
+    session: AsyncSession = Depends(get_db),
+):
+    return await send_password_reset_mail(data.email, session)
+
+
+@router.post("/change-pin-or-password")
+async def change_password_endpoint(
+    data: PasswordResetSchema = Body(...),
+    session: AsyncSession = Depends(get_db),
+):
+    return await change_pin_or_password(
+        session=session,
+        **data.model_dump()
+    )

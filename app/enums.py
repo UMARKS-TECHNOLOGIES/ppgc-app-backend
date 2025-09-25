@@ -1,11 +1,11 @@
 import enum
 
-class EmailManagementReasonChoice(enum.Enum):
+class EmailManagementReasonChoice(str, enum.Enum):
     email_verification = 'email-verification'
     password_change = 'password-change'
     verified = 'verified'
 
-class ClientTypeChoice(enum.Enum):
+class ClientTypeChoice(str, enum.Enum):
     client = 'client'
     agent = 'agent'
 

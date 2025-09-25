@@ -5,15 +5,19 @@ from sqlalchemy import (
     Boolean, 
     Enum as SQLAlchemyEnum, 
     func,
+    ForeignKey,
     DateTime,
 )
 from sqlalchemy.future import select
 from sqlalchemy import types as _types
+from sqlalchemy.orm import relationship
 from sqlalchemy.ext.asyncio import AsyncSession
+
 
 from ppgc_backend.app.enums import (
     EmailManagementReasonChoice,
 )
+from .model_helper import CloudImageDetail
 from ppgc_backend.app.controllers.actors.models import User
 from ppgc_backend.config.postgres_connection_manager import Base
 from ppgc_backend.app.controllers.bookings.models import Booking
