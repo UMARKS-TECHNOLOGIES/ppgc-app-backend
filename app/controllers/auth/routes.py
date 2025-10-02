@@ -12,10 +12,11 @@ from .schemas import (
     RequestEmailResponseSchema,
     GenericSuccessResponseSchema,
     VerifyEmailAndSignUserUpSchema,
+    Email,
     SigninSchema,
+    UserResponseSchema,
     PasswordResetSchema,
     SendPasswordResetMail,
-    Email,
 )
 from .services import (
     signin,
@@ -30,13 +31,9 @@ from .services import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 # user registeration endpoint
-# @router.post("/register", status_code=status.HTTP_201_CREATED)
-# async def register_user(user_data: UserRegistrationSchema, db: AsyncSession = Depends(get_db)):
-#     try:
-#         user = await create_user(db, user_data)
-#     except HTTPException as e:
-#         raise e
-#     return fetch_access_token(user)
+@router.post("/register-staff", status_code=status.HTTP_201_CREATED, response_model=UserResponseSchema)
+async def register_user(user_data: UserRegistrationSchema, db: AsyncSession = Depends(get_db)):
+    return await create_user(db, user_data)
 
 
 # request email verification for signup endpoint

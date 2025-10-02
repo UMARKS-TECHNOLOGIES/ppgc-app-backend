@@ -49,7 +49,7 @@ class SigninSchema(PinOrPasswordSchema):
 
 class UserRegistrationSchema(PinOrPasswordSchema):
     email: str
-    first_name: str
+    first_name: Optional[str] = None
     last_name: Optional[str] = None
 
 
@@ -67,7 +67,7 @@ class TokenData(BaseModel):
 class UserResponseSchema(BaseModel):
     id: int
     email: str
-    username: str
+    email_verified: bool
 
     model_config = ConfigDict(from_attributes=True)
 

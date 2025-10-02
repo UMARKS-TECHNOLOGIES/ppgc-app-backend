@@ -34,7 +34,7 @@ from ppgc_backend.app.controllers.investments.models import Investment, Investme
 class TransientVerificationStore(Base):
     __tablename__ = 'transient_verification_store'
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     email_address = Column(String, nullable=True, unique=True)

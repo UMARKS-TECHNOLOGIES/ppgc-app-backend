@@ -42,6 +42,7 @@ class User(Base):
         nullable=False,
         default=UserRoleChoice.user
     )
+    email_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
 

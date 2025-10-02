@@ -1,5 +1,9 @@
 import os
-import pytest
+import time
+import signal
+import requests
+import subprocess
+import pytest_asyncio
 from sqlalchemy import text
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -12,14 +16,14 @@ from ppgc_backend.config.settings import (
 from ppgc_backend.config.postgres_connection_manager import Base, get_postgres_instance
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 def test_env_var():
     os.environ["TEST_ENV"] = "true"
     yield
     os.environ.pop("TEST_ENV", None)
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def get_test_db__fixture(test_env_var):
     # initialize a test engine and store its reference
     async_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
@@ -37,7 +41,7 @@ async def get_test_db__fixture(test_env_var):
 
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def client_fixture(
     get_test_db__fixture, 
 ):
@@ -55,3 +59,30 @@ async def client_fixture(
             "db": test_db,
         }
 
+
+@pytest_asyncio.fixture(scope="function")
+def app_subprocess(test_env_var):
+    # On Windows, use creationflags to create a new process group
+    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
+    app = subprocess.Popen(
+        [
+            "uvicorn", "app.main:app", "--port",
+            "8000",
+        ],
+        creationflags=creationflags
+    )
+
+    # Give time to start
+    for _ in range(20):
+        try:
+            requests.get(f'http://localhost:8000/?session={int(time.time())}')
+            break
+        except Exception:
+            time.sleep(1)  # ←
+    
+    yield
+
+    # Graceful shutdown
+    app.send_signal(signal.CTRL_BREAK_EVENT)
+
+    app.wait()

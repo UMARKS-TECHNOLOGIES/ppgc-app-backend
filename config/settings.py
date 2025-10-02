@@ -10,7 +10,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Secret key for cryptographic operations
-SECRET_KEY = os.getenv('SECRET_KEY', 'your_secret_key')
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your_secret_key')
 
 # Allowed hosts for the application
 DEV_ENV_HOSTNAME=os.getenv('DEV_ENV_HOSTNAME')
@@ -45,3 +45,6 @@ JWT_EXPIRATION_DELTA = int(os.getenv('JWT_EXPIRATION_DELTA', 30))
 
 PASSWORD_RESET_TTL = 1800 # 30 minutes
 TEST_PASSWORD_RESET_TTL = 10 # 10 SES
+
+SUPER_ADMIN_EMAIL_ADDRESS = os.getenv('SUPER_ADMIN_EMAIL_ADDRESS')
+SUPER_ADMIN_PASSWORD = os.getenv('SUPER_ADMIN_EMAIL_ADDRESS')

@@ -33,12 +33,15 @@ from ppgc_backend.config.settings import (
     JWT_SECRET_KEY, 
     PASSWORD_RESET_TTL,
     JWT_EXPIRATION_DELTA, 
+    SUPER_ADMIN_PASSWORD,
     TEST_PASSWORD_RESET_TTL,
+    SUPER_ADMIN_EMAIL_ADDRESS,
 )
 from ppgc_backend.app.schemas.auth_schemas import (
     ProbeUserExistenceSchema,
 )
 from ppgc_backend.app.enums import EmailManagementReasonChoice
+from ppgc_backend.config.postgres_connection_manager import get_postgres_instance
 
 
 import logging
@@ -275,8 +278,7 @@ async def email_code_cleanup_loop(
 
             except Exception as e:
                 await session.rollback()
-                if DEBUG:
-                    print("❗ Error in email_code_cleanup_loop:", str(e))
+                logger.error("❗ Error in email_code_cleanup_loop:", str(e))
 
             # time in seconds before the next check
             await asyncio.sleep(transient_email_interval())
@@ -343,7 +345,7 @@ async def probe_email_uniqueness_and_request_verification_code(session: AsyncSes
         }
     except Exception as e:
         await session.rollback()
-        f_message = "An error occured while registering user."
+        f_message = "An error occured after requesting verification email."
         d_message= f"{f_message} Reason: {e}" 
         logger.error(d_message)
         raise HTTPException(
@@ -363,7 +365,7 @@ async def request_verification_code(email_address:str, username: str) -> str:
             email_address=email_address
         )
     except Exception as e:
-        f_message = "An error occured while sending verification email"
+        f_message = "An error occured while requesting verification email"
         d_message= f"{f_message} Reason: {e}" 
         logger.error(d_message)
         raise HTTPException(
@@ -435,7 +437,7 @@ async def confirm_email_verification_code_and_sign_user_up(
             detail="Verification code incorrect or expired."
         )
 
-    collection = {}
+    collection = {'email_verified':True}
 
     # Hash the user's password or pin before saving it to the database
     if 'pin' in data:
@@ -520,8 +522,39 @@ async def signin(db:AsyncSession, user_data: dict):
 
 
 async def register_admin():
-    pass
-    
+    email=SUPER_ADMIN_EMAIL_ADDRESS
+    password=SUPER_ADMIN_PASSWORD
+    async with get_postgres_instance() as session:
+        session: AsyncSession
+        query = await session.execute(
+            select(User)
+            .where(
+                User.email == SUPER_ADMIN_EMAIL_ADDRESS,
+                User.is_admin == True
+            )
+        )
+        admin = query.scalars().first()
+
+        admin_recent = True
+        if admin: # if the user exists, authenticate against existing password, if not authenticated, update password
+            user = await authenticate_user(session, email, password=password)
+            if not user:
+                admin_recent = False
+        
+        # if user does not exist, delete any existing admin, create an admin
+        if not admin or not admin_recent:
+            new_admin = User(
+                email=SUPER_ADMIN_EMAIL_ADDRESS,
+                password_hash=get_password_hash(password),
+                is_admin=True
+            ) 
+            session.add(new_admin)
+            await session.commit()
+        
+        if DEBUG:
+            logger.info('**Admin setup')
+        
+
 def get_password_reset_ttl():
     return TEST_PASSWORD_RESET_TTL if env_is_test() else PASSWORD_RESET_TTL
 

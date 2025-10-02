@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from contextlib import asynccontextmanager
 from ppgc_backend.app.controllers.auth import routes as auth_routes
+from ppgc_backend.app.controllers.auth.services import register_admin
 from ppgc_backend.app.controllers.hotels import routes as hotel_routes
 from ppgc_backend.app.controllers.bookings import routes as bookings_routes
 from ppgc_backend.app.controllers.inspection import routes as inspection_routes
@@ -29,8 +30,7 @@ from ppgc_backend.config.settings import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup logic
-
-    
+    await register_admin()
     yield  
     # Application runs here
     # Shutdown logic (if needed)

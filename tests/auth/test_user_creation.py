@@ -40,7 +40,7 @@ async def test_request_and_verify_email_verification_code(client_fixture):
         "fullname": fullname,
     }
 
-    # 1️⃣ Send verification code
+    # 1️⃣ Request verification code
     response = await httpx_client.post(
         "/auth/request-email-verification-code",
         json=send_code_data
@@ -49,8 +49,7 @@ async def test_request_and_verify_email_verification_code(client_fixture):
     json_response = response.json()
     assert "expiry" in json_response
     assert "detail" in json_response
-
-    # 2️⃣ Check that it's stored in the DB
+    # Check that it's stored in the DB
     stmt = await test_db.execute(
         select(TransientVerificationStore).where(
             TransientVerificationStore.email_address == email
@@ -63,7 +62,8 @@ async def test_request_and_verify_email_verification_code(client_fixture):
     code = record.email_code
     assert code and isinstance(code, str)
 
-    # 3️⃣ Try resending before expiry (should return 302)
+
+    # 2️⃣ Try resending before expiry (should return 302)
     response = await httpx_client.post(
         "/auth/request-email-verification-code",
         json=send_code_data
@@ -72,7 +72,6 @@ async def test_request_and_verify_email_verification_code(client_fixture):
     json_response = response.json()
     assert json_response['detail']['status'] == "An email code has already been sent."
     assert json_response['detail']['status']
-
     # retrieve code
     query = await test_db.execute(
         select(TransientVerificationStore)
@@ -90,7 +89,7 @@ async def test_request_and_verify_email_verification_code(client_fixture):
         "pin": "test_pin",
 
     }
-    # Confirm it — should succeed
+    # 3️⃣ Confirm the code; it should succeed
     response = await httpx_client.post(
         "/auth/confirm-email-verification-code",
         json=confirm_data
@@ -106,7 +105,6 @@ async def test_request_and_verify_email_verification_code(client_fixture):
     )
     assert response.status_code == 404
     assert response.json()['detail'] == "Verification code incorrect or expired."
-
     # assert that the user exists
     query = await test_db.execute(
         select(User)
