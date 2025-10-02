@@ -2,6 +2,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, model_validator, Field
 
 
+from ppgc_backend.app.controllers.actors.enums import UserRoleChoice
 
 class RegistrationSchema(BaseModel):
     fullname: str
@@ -53,6 +54,10 @@ class UserRegistrationSchema(PinOrPasswordSchema):
     last_name: Optional[str] = None
 
 
+class StaffRegistrationSchema(UserRegistrationSchema):
+    user_role: str = 'staff'
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -68,6 +73,7 @@ class UserResponseSchema(BaseModel):
     id: int
     email: str
     email_verified: bool
+    user_role: UserRoleChoice
 
     model_config = ConfigDict(from_attributes=True)
 

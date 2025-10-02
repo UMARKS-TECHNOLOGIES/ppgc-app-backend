@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, APIRouter, HTTPException, status, Depends
 
 
+from ppgc_backend.app.initiator import logger
 from ppgc_backend.app.models import (
     User,
     TransientVerificationStore
@@ -21,12 +22,13 @@ from ppgc_backend.config import env_is_test
 from ppgc_backend.app.utils.store import (
     send_email,
     substituted_string,
-    transient_email_interval,
+    transient_cleanup_interval,
     email_verification_code_ttl,
     transient_email_verification_ttl,
     read_email_from_html_template_name,
 )
 from ppgc_backend.app.database import get_db
+from ppgc_backend.config import get_env
 from ppgc_backend.config.settings import (
     DEBUG,
     JWT_ALGORITHM,
@@ -281,12 +283,13 @@ async def email_code_cleanup_loop(
                 logger.error("❗ Error in email_code_cleanup_loop:", str(e))
 
             # time in seconds before the next check
-            await asyncio.sleep(transient_email_interval())
+            await asyncio.sleep(transient_cleanup_interval())
     
     task = asyncio.create_task(run_cache_task())
     
     #if get_env() == 'test':
     #    await task  # ensure cleanup before test exits
+
 
 # user existence
 async def probe_email_uniqueness_and_request_verification_code(session: AsyncSession, data: dict):
@@ -490,24 +493,19 @@ async def confirm_email_verification_code_and_sign_user_up(
     
 
 async def signin(db:AsyncSession, user_data: dict):
-    try:
-        pin_or_password_map = {}
-        if 'pin' in user_data:
-            pin_or_password_map['pin'] = user_data['pin']
-        elif 'password' in user_data:
-            pin_or_password_map['password'] = user_data['password']
-
-        user = await authenticate_user(
-            db = db, 
-            login = user_data['email'], 
-            **pin_or_password_map
+    user = await authenticate_user(
+        db,
+        login = user_data.pop('email'), 
+        **user_data
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+    
+    try:
         return {
             **fetch_access_token(user),
         }
@@ -521,38 +519,43 @@ async def signin(db:AsyncSession, user_data: dict):
         )
 
 
-async def register_admin():
-    email=SUPER_ADMIN_EMAIL_ADDRESS
-    password=SUPER_ADMIN_PASSWORD
-    async with get_postgres_instance() as session:
+async def initialize_admin():
+    email = SUPER_ADMIN_EMAIL_ADDRESS
+    password = SUPER_ADMIN_PASSWORD
+    async for session in get_db():
         session: AsyncSession
         query = await session.execute(
             select(User)
-            .where(
-                User.email == SUPER_ADMIN_EMAIL_ADDRESS,
-                User.is_admin == True
-            )
+            .where(User.email == email)
         )
         admin = query.scalars().first()
 
         admin_recent = True
-        if admin: # if the user exists, authenticate against existing password, if not authenticated, update password
+        if admin:  
+            # verify password
             user = await authenticate_user(session, email, password=password)
             if not user:
                 admin_recent = False
+            else:
+                logger.info(f"\033[92m**Admin exists\033[0m")
+                return  # admin is valid, done
         
-        # if user does not exist, delete any existing admin, create an admin
-        if not admin or not admin_recent:
-            new_admin = User(
-                email=SUPER_ADMIN_EMAIL_ADDRESS,
-                password_hash=get_password_hash(password),
-                is_admin=True
-            ) 
-            session.add(new_admin)
-            await session.commit()
+        password_hash = get_password_hash(password)
+
+        if not admin:
+            admin = User(
+                email=email,
+                password_hash=password_hash,
+                is_admin=True,
+                user_role='admin'
+            )
+        elif not admin_recent:
+            admin.password_hash = password_hash
         
-        if DEBUG:
-            logger.info('**Admin setup')
+        session.add(admin)
+        await session.commit()
+
+        logger.info("\033[92m**Admin setup\033[0m")  # green log
         
 
 def get_password_reset_ttl():
@@ -593,43 +596,45 @@ async def send_password_reset_mail(
     reset_instance = query.scalars().first()
 
     if reset_instance: #When a result is found
+        expiry: datetime = reset_instance.email_code_expiry_time
         raise HTTPException(
             status_code=status.HTTP_302_FOUND,
             detail = {
                 "message" : "Please wait before requesting a new password link.",
-                "expiry" : reset_instance.email_code_expiry_time
-                }
+                "expiry" : expiry.isoformat() if expiry else None
+            }
         )
     else: # When no result is found
+        # Generate a new five-digit code
+        code = '{:05d}'.format(random.randint(0, 9999))
+
+        # call the email function and send the email
+        # extract the email content from the template
+        email_template_content = read_email_from_html_template_name('password_reset_template')
+        prince_paradise_address = "Port Harcourt"
+        
+        email_string = substituted_string(
+            email_template_content,
+            {
+                "reset_code":code,
+                "prince_paradise_address": prince_paradise_address
+            }
+        )
+        from_address="team@stackfinancialsolutions.com"
+        subject="PPGC Verification Code"
+        from_name="Prince Paradise"
+        #to_name="Customer"
+
+        send_email(
+            from_email=from_address,
+            to_email=email,
+            from_name=from_name,
+            subject=subject,
+            html_email=email_string
+        )
+
+
         try:
-            # Generate a new five-digit code
-            code = '{:05d}'.format(random.randint(0, 9999))
-
-            # call the email function and send the email
-            # extract the email content from the template
-            email_template_content = read_email_from_html_template_name('password_reset_template')
-            prince_paradise_address = "Port Harcourt"
-            
-            email_string = substituted_string(
-                email_template_content,
-                {
-                    "reset_code":code,
-                    "prince_paradise_address": prince_paradise_address
-                }
-            )
-            from_address="team@stackfinancialsolutions.com"
-            subject="PPGC Verification Code"
-            from_name="Prince Paradise"
-            #to_name="Customer"
-
-            send_email(
-                from_email=from_address,
-                to_email=email,
-                from_name=from_name,
-                subject=subject,
-                html_email=email_string
-            )
-
             # create an instance of the user with the data
             transient_instance = TransientVerificationStore(
                 email_address = email,
@@ -639,9 +644,7 @@ async def send_password_reset_mail(
             session.add(transient_instance)
             await session.flush()
 
-            # get the time created and add the expiry
-            await session.refresh(transient_instance)
-            expiry_time = transient_instance.created_at + timedelta(seconds=ttl_in_secs)
+            expiry_time: datetime = transient_instance.created_at + timedelta(seconds=ttl_in_secs)
             transient_instance.email_code_expiry_time = expiry_time
             await session.commit()
 

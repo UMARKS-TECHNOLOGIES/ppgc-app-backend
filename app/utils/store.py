@@ -9,8 +9,8 @@ from ppgc_backend.config.settings import (
     TEST_EMAIL_VERIFICATION_CODE_TTL,
     TRANSIENT_EMAIL_VERIFICATION_TTL,
     TEST_TRANSIENT_EMAIL_VERIFICATION_TTL,
-    TRANSIENT_EMAIL_INTERVAL,
-    TEST_TRANSIENT_EMAIL_INTERVAL,
+    TRANSIENT_CLEANUP_INTERVAL,
+    TEST_TRANSIENT_CLEANUP_INTERVAL,
 )
 
 
@@ -81,12 +81,12 @@ def transient_email_verification_ttl():
     return expiry_time
 
 
-def transient_email_interval():
+def transient_cleanup_interval():
     env = get_env()
     env_is_test = env == 'test'
     interval = (
-        TEST_TRANSIENT_EMAIL_INTERVAL
+        TEST_TRANSIENT_CLEANUP_INTERVAL
         if env_is_test else 
-        TRANSIENT_EMAIL_INTERVAL
+        TRANSIENT_CLEANUP_INTERVAL
     )
     return interval

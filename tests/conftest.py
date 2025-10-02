@@ -5,6 +5,7 @@ import requests
 import subprocess
 import pytest_asyncio
 from sqlalchemy import text
+from asgiref.sync import async_to_sync
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 
@@ -22,9 +23,7 @@ def test_env_var():
     yield
     os.environ.pop("TEST_ENV", None)
 
-
-@pytest_asyncio.fixture(scope="function")
-async def get_test_db__fixture(test_env_var):
+async def drop_and_create_metadata():
     # initialize a test engine and store its reference
     async_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
     # Create a clean database if it's a test environment
@@ -34,11 +33,13 @@ async def get_test_db__fixture(test_env_var):
         print("***Dropped and recreated public schema")
         await conn.run_sync(Base.metadata.create_all)
         print("***Created a new Base metadata")
-    
+
+
+@pytest_asyncio.fixture(scope="function")
+async def get_test_db__fixture(test_env_var):
+    await drop_and_create_metadata()
     async with get_postgres_instance() as session:
         yield session
-
-
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -62,6 +63,9 @@ async def client_fixture(
 
 @pytest_asyncio.fixture(scope="function")
 def app_subprocess(test_env_var):
+    # refresh database metadata
+    async_to_sync(drop_and_create_metadata)()
+    
     # On Windows, use creationflags to create a new process group
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
     app = subprocess.Popen(

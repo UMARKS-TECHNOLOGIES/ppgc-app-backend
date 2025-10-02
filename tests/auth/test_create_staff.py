@@ -50,6 +50,7 @@ async def test_create_staff(client_fixture):
     json_response = response.json()
     assert 'id' in json_response
     assert not json_response['email_verified']
+    assert json_response['user_role'] == 'staff'
 
     # Check that it's stored in the DB
     query = await test_db.execute(

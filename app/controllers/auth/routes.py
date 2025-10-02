@@ -8,7 +8,7 @@ from ppgc_backend.app.schemas.auth_schemas import (
 )
 from .schemas import (
     RequestEmailCodeSchema,
-    UserRegistrationSchema,
+    StaffRegistrationSchema,
     RequestEmailResponseSchema,
     GenericSuccessResponseSchema,
     VerifyEmailAndSignUserUpSchema,
@@ -32,7 +32,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # user registeration endpoint
 @router.post("/register-staff", status_code=status.HTTP_201_CREATED, response_model=UserResponseSchema)
-async def register_user(user_data: UserRegistrationSchema, db: AsyncSession = Depends(get_db)):
+async def register_user(user_data: StaffRegistrationSchema, db: AsyncSession = Depends(get_db)):
     return await create_user(db, user_data)
 
 
