@@ -556,7 +556,7 @@ async def initialize_admin():
         await session.commit()
 
         logger.info("\033[92m**Admin setup\033[0m")  # green log
-        
+        return admin
 
 def get_password_reset_ttl():
     return TEST_PASSWORD_RESET_TTL if env_is_test() else PASSWORD_RESET_TTL

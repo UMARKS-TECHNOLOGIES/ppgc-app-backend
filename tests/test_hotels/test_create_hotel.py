@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import hotel_data_template
 from ppgc_backend.tests.auth.test_user_creation import create_test_user
-from ppgc_backend.app.controllers.auth.services import fetch_access_token
+from ppgc_backend.app.controllers.auth.services import fetch_access_token, initialize_admin
 
 @pytest.mark.asyncio
 async def test_create_hotel(client_fixture):
@@ -12,7 +12,7 @@ async def test_create_hotel(client_fixture):
         test_db: AsyncSession = fixture_obj["db"]
         httpx_client: AsyncClient = fixture_obj["http_client"]
         break
-
+    
     # Create and authenticate user
     created_user = await create_test_user(test_db)
     token = fetch_access_token(user=created_user)["access_token"]
@@ -32,9 +32,9 @@ async def test_create_hotel(client_fixture):
     assert response.status_code == 403
 
     # Elevate user's role
-    created_user.user_role = 'staff'
-    test_db.add(created_user)
-    await test_db.commit()
+    admin = await initialize_admin()
+    token = fetch_access_token(user=admin)["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
     response = await httpx_client.post(
         "/hotel/",
         json=hotel_data,

@@ -20,14 +20,24 @@ async def create_inspection(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(decode_user_from_token)
 ):
-    inspection = Inspection(
-        **inspection_data.model_dump(),
-        requester_id = user.id,
-    )
-    db.add(inspection)
-    await db.commit()
-    await db.refresh(inspection)
-    return inspection
+    try:
+        inspection = Inspection(
+            **inspection_data.model_dump(),
+            requester_id = user.id,
+        )
+        db.add(inspection)
+        await db.commit()
+        await db.refresh(inspection)
+        return inspection
+    except Exception as e:
+        await db.rollback()
+        f_msg = 'An error occurred while creating inspection.'
+        d_msg = f'{f_msg} Reason: {e}'
+        print(d_msg)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f_msg
+        )
 
 
 @router.get("/all", response_model=List[InspectionResponse])
@@ -37,19 +47,27 @@ async def list_all_inspections(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_roles("staff", "admin")),
 ):
-    offset = (page - 1) * size
-
-    inspections = await db.execute(
-        select(Inspection)
-        .options(
-            selectinload(Inspection.requester),
-            selectinload(Inspection.property)
+    try:
+        offset = (page - 1) * size
+        inspections = await db.execute(
+            select(Inspection)
+            .options(
+                selectinload(Inspection.requester),
+                selectinload(Inspection.property)
+            )
+            .order_by(Inspection.id.desc())
+            .offset(offset)
+            .limit(size)
         )
-        .order_by(Inspection.id.desc())
-        .offset(offset)
-        .limit(size)
-    )
-    return inspections.scalars().all()
+        return inspections.scalars().all()
+    except Exception as e:
+        f_msg = 'An error occurred while listing all inspections.'
+        d_msg = f'{f_msg} Reason: {e}'
+        print(d_msg)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f_msg
+        )
 
 
 @router.get("/my-inspections", response_model=List[InspectionResponse])
@@ -59,20 +77,28 @@ async def list_user_inspections(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(decode_user_from_token),
 ):
-    offset = (page - 1) * size
-
-    inspections = await db.execute(
-        select(Inspection)
-        .where(Inspection.requester_id == user.id)
-        .options(
-            selectinload(Inspection.requester),
-            selectinload(Inspection.property)
+    try:
+        offset = (page - 1) * size
+        inspections = await db.execute(
+            select(Inspection)
+            .where(Inspection.requester_id == user.id)
+            .options(
+                selectinload(Inspection.requester),
+                selectinload(Inspection.property)
+            )
+            .order_by(Inspection.id.desc())
+            .offset(offset)
+            .limit(size)
         )
-        .order_by(Inspection.id.desc())
-        .offset(offset)
-        .limit(size)
-    )
-    return inspections.scalars().all()
+        return inspections.scalars().all()
+    except Exception as e:
+        f_msg = 'An error occurred while listing user inspections.'
+        d_msg = f'{f_msg} Reason: {e}'
+        print(d_msg)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f_msg
+        )
 
 
 
@@ -82,21 +108,25 @@ async def get_inspection(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(decode_user_from_token)
 ):
-    # Fetch the inspection
-    inspection = await db.get(Inspection, inspection_id)
-
-    if not inspection:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inspection not found")
-
-    # Permission check: must be owner or staff/admin
-    if user.user_role == "user":
-        if inspection.requester_id != user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to view this inspection."
-            )
-
-    return inspection
+    try:
+        inspection = await db.get(Inspection, inspection_id)
+        if not inspection:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inspection not found")
+        if user.user_role == "user":
+            if inspection.requester_id != user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You do not have permission to view this inspection."
+                )
+        return inspection
+    except Exception as e:
+        f_msg = 'An error occurred while fetching inspection.'
+        d_msg = f'{f_msg} Reason: {e}'
+        print(d_msg)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f_msg
+        )
 
 
 @router.delete("/{inspection_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -105,18 +135,25 @@ async def delete_inspection(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(decode_user_from_token)
 ):
-    inspection = await db.get(Inspection, inspection_id)
-    if not inspection:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inspection not found")
-
-    is_owner = inspection.requester_id == user.id
-    is_admin_or_staff = user.user_role in ("admin", "staff")
-
-    if not (is_owner or is_admin_or_staff):
-        raise HTTPException(status_code=403, detail="Not authorized to delete this inspection")
-
-    await db.delete(inspection)
-    await db.commit()
+    try:
+        inspection = await db.get(Inspection, inspection_id)
+        if not inspection:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inspection not found")
+        is_owner = inspection.requester_id == user.id
+        is_admin_or_staff = user.user_role in ("admin", "staff")
+        if not (is_owner or is_admin_or_staff):
+            raise HTTPException(status_code=403, detail="Not authorized to delete this inspection")
+        await db.delete(inspection)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        f_msg = 'An error occurred while deleting inspection.'
+        d_msg = f'{f_msg} Reason: {e}'
+        print(d_msg)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f_msg
+        )
 
 
 @router.patch("/{inspection_id}", response_model=InspectionResponse)
@@ -126,25 +163,30 @@ async def update_inspection(
     session: AsyncSession = Depends(get_db),
     user: User = Depends(decode_user_from_token)
 ):
-    inspection = await session.get(Inspection, inspection_id)
-    if not inspection:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inspection not found")
-
-    is_owner = inspection.requester_id == user.id
-    is_admin_or_staff = user.user_role in ("admin", "staff")
-
-    if not (is_owner or is_admin_or_staff):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this inspection")
-
-    if inspection.status != "pending":
+    try:
+        inspection = await session.get(Inspection, inspection_id)
+        if not inspection:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inspection not found")
+        is_owner = inspection.requester_id == user.id
+        is_admin_or_staff = user.user_role in ("admin", "staff")
+        if not (is_owner or is_admin_or_staff):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this inspection")
+        if inspection.status != "pending":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only inspections with status 'pending' can be modified"
+            )
+        for field, value in update_data.model_dump(exclude_unset=True).items():
+            setattr(inspection, field, value)
+        await session.commit()
+        await session.refresh(inspection)
+        return inspection
+    except Exception as e:
+        await session.rollback()
+        f_msg = 'An error occurred while updating inspection.'
+        d_msg = f'{f_msg} Reason: {e}'
+        print(d_msg)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only inspections with status 'pending' can be modified"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f_msg
         )
-
-    for field, value in update_data.model_dump(exclude_unset=True).items():
-        setattr(inspection, field, value)
-
-    await session.commit()
-    await session.refresh(inspection)
-    return inspection
