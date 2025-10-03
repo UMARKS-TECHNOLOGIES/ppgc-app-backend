@@ -1,7 +1,8 @@
 import random 
 import asyncio
+from typing import Callable
 from jose import jwt, JWTError
-from typing import List, Callable
+from sqlalchemy import delete, or_
 from sqlalchemy.future import select
 from passlib.context import CryptContext
 from sqlalchemy.exc import IntegrityError
@@ -10,7 +11,6 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, APIRouter, HTTPException, status, Depends
-
 
 from ppgc_backend.app.initiator import logger
 from ppgc_backend.app.models import (
@@ -138,8 +138,10 @@ async def check_username_email_availability(db: AsyncSession, user_data: ProbeUs
     return result
 
 
-def require_roles(*allowed_roles: List[str]) -> Callable:
+def require_roles(*allowed_roles: tuple[str]) -> Callable:
     async def wrapper(current_user: User = Depends(decode_user_from_token)):
+        logger.info(f'role: {allowed_roles}')
+        logger.info(f'user_role: {current_user.user_role}')
         if current_user.user_role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -526,7 +528,11 @@ async def initialize_admin():
         session: AsyncSession
         query = await session.execute(
             select(User)
-            .where(User.email == email)
+            .where(
+                User.email == email,
+                User.user_role == 'admin',
+                User.is_admin == True,
+            )
         )
         admin = query.scalars().first()
 
@@ -543,6 +549,21 @@ async def initialize_admin():
         password_hash = get_password_hash(password)
 
         if not admin:
+            # delete all other admin
+            stmt = (
+                delete(User)
+                .where(
+                    or_(
+                        User.user_role == "admin",
+                        User.email == email,
+                        User.is_admin == True
+                    )
+                )
+            )
+            await session.execute(stmt)
+            await session.commit()
+
+            # create new admin
             admin = User(
                 email=email,
                 password_hash=password_hash,
@@ -557,6 +578,7 @@ async def initialize_admin():
 
         logger.info("\033[92m**Admin setup\033[0m")  # green log
         return admin
+
 
 def get_password_reset_ttl():
     return TEST_PASSWORD_RESET_TTL if env_is_test() else PASSWORD_RESET_TTL
