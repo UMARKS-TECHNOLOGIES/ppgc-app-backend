@@ -40,7 +40,7 @@ async def test_patch_hotel(client_fixture):
         "description": "Updated description."
     }
     response = await httpx_client.patch(
-        f"/hotel/{hotel_id}",
+        f"/hotel/{hotel_id}/",
         json=patch_data,
         headers=headers,
     )

@@ -47,14 +47,14 @@ async def test_delete_room_by_id(client_fixture):
 
     # Delete room by id
     response = await httpx_client.delete(
-        f"/hotel/rooms/{room_id}",
+        f"/hotel/rooms/{room_id}/",
         headers=headers,
     )
     assert response.status_code == 204
 
     # Try to get the deleted room (should return 404)
     response = await httpx_client.get(
-        f"/hotel/rooms/{room_id}",
+        f"/hotel/rooms/{room_id}/",
         headers=headers,
     )
     assert response.status_code == 404

@@ -49,7 +49,7 @@ async def test_get_all_rooms_of_hotel(client_fixture):
 
     # Get all rooms for the hotel
     response = await httpx_client.get(
-        f"/hotel/{hotel_id}/rooms",
+        f"/hotel/{hotel_id}/rooms/",
         headers=headers,
     )
     assert response.status_code == 200

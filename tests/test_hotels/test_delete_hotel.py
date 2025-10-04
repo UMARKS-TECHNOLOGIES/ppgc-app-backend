@@ -36,14 +36,14 @@ async def test_delete_hotel(client_fixture):
 
     # Delete hotel
     response = await httpx_client.delete(
-        f"/hotel/{hotel_id}",
+        f"/hotel/{hotel_id}/",
         headers=headers,
     )
     assert response.status_code == 204
 
     # Try to get the deleted hotel (should return 404)
     response = await httpx_client.get(
-        f"/hotel/{hotel_id}",
+        f"/hotel/{hotel_id}/",
         headers=headers,
     )
     assert response.status_code == 404

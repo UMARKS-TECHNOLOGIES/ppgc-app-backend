@@ -140,8 +140,6 @@ async def check_username_email_availability(db: AsyncSession, user_data: ProbeUs
 
 def require_roles(*allowed_roles: tuple[str]) -> Callable:
     async def wrapper(current_user: User = Depends(decode_user_from_token)):
-        logger.info(f'role: {allowed_roles}')
-        logger.info(f'user_role: {current_user.user_role}')
         if current_user.user_role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

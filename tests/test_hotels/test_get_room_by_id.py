@@ -47,7 +47,7 @@ async def test_get_room_by_id(client_fixture):
 
     # Get room by id
     response = await httpx_client.get(
-        f"/hotel/rooms/{room_id}",
+        f"/hotel/rooms/{room_id}/",
         headers=headers,
     )
     assert response.status_code == 200
