@@ -129,3 +129,4 @@ ipython_scripts/
 z.ini
 render.yaml
 runtime.txt
+alembic/past_versions/

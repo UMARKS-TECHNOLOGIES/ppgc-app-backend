@@ -11,7 +11,7 @@ from sqlalchemy import (
     ForeignKey
 )
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY
 
 from ppgc_backend.app.model_helper import CloudImageDetail
 from ppgc_backend.config.postgres_connection_manager import Base
@@ -59,7 +59,7 @@ class Property(Base):
     )
 
     # Reverse relationship to asset feature
-    features = Column(JSONB)
+    features = Column(ARRAY(String), default=list)
 
     area_id = Column(   
         Integer,

@@ -16,7 +16,8 @@ class Inspection(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     status = Column(
         SQLAlchemyEnum(InspectionStatus, name="inspection_status_choice"),
-        default=InspectionStatus.pending
+        default=InspectionStatus.pending,
+        nullable=False
     )
 
     # Relationships (nullable)

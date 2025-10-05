@@ -37,9 +37,10 @@ async def test_list_properties_with_pagination(client_fixture):
         "type": "apartment",
         "cover_image": cover_image,
         "other_images": other_images,
-        "features": {"bedrooms": 2, "bathrooms": 1, "parking": True},
+        "features": ["bedrooms", "bathrooms", "parking"],
         "area": {**area_template},
     }
+
     num_properties = 7
     for i in range(num_properties):
         payload = {
@@ -60,7 +61,7 @@ async def test_list_properties_with_pagination(client_fixture):
 
     # Fetch first page (limit 5)
     response = await httpx_client.get(
-        "/properties/?limit=5&offset=0",
+        "/properties/?size=5",
         headers=headers
     )
     assert response.status_code == 200
@@ -71,7 +72,7 @@ async def test_list_properties_with_pagination(client_fixture):
 
     # Fetch second page (limit 5, offset 5)
     response2 = await httpx_client.get(
-        "/properties/?limit=5&offset=5",
+        "/properties/?size=5&page=2",
         headers=headers
     )
     assert response2.status_code == 200

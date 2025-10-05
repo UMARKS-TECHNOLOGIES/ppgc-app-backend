@@ -14,7 +14,7 @@ class PropertyBase(BaseModel):
     type: str
     cover_image: CloudImageCreateSchema
     other_images: Optional[List[CloudImageCreateSchema]] = None
-    features: Optional[dict] = None
+    features: Optional[List[str]] = None
     area: AreaSchema
 
 
@@ -22,16 +22,13 @@ class PropertyCreate(PropertyBase):
     pass
 
 
-class PropertyUpdate(BaseModel):
+class PropertyUpdate(PropertyBase):
     title: Optional[str] = None
     price: Optional[Decimal] = None
-    description: Optional[str] = None
     availability: Optional[str] = None
     type: Optional[str] = None
-    cover_image: Optional[int] = None
-    other_images: Optional[int] = None
-    features: Optional[dict] = None
-    area: Optional[int] = None
+    cover_image: Optional[CloudImageCreateSchema] = None
+    area: Optional[AreaSchema] = None
 
 
 class PropertyResponse(PropertyBase):

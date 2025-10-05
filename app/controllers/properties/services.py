@@ -3,9 +3,10 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import Property
-from ppgc_backend.app.models import Area, CloudImageDetail
+from ppgc_backend.app.initiator import logger
+from ppgc_backend.config.settings import DEBUG
 from .schemas import PropertyCreate, PropertyUpdate
-
+from ppgc_backend.app.models import Area, CloudImageDetail
 
 async def create_property(db: AsyncSession, property_data: PropertyCreate) -> Property:
     try:
@@ -37,7 +38,8 @@ async def create_property(db: AsyncSession, property_data: PropertyCreate) -> Pr
         await db.rollback()
         f_msg = 'An error occurred while creating property.'
         d_msg = f'{f_msg} Reason: {e}'
-        print(d_msg)
+        if DEBUG:
+            logger.error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f_msg
@@ -45,11 +47,9 @@ async def create_property(db: AsyncSession, property_data: PropertyCreate) -> Pr
 
 
 async def update_property(db: AsyncSession, property_id: int, property_data: PropertyUpdate) -> Property:
+    property_obj = await get_property(db, property_id)
+    
     try:
-        result = await db.execute(select(Property).where(Property.id == property_id))
-        property_obj = result.scalar_one_or_none()
-        if not property_obj:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
         for field, value in property_data.model_dump(exclude_unset=True).items():
             setattr(property_obj, field, value)
         await db.commit()
@@ -59,7 +59,8 @@ async def update_property(db: AsyncSession, property_id: int, property_data: Pro
         await db.rollback()
         f_msg = 'An error occurred while updating property.'
         d_msg = f'{f_msg} Reason: {e}'
-        print(d_msg)
+        if DEBUG:
+            logger.error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f_msg
@@ -67,15 +68,17 @@ async def update_property(db: AsyncSession, property_id: int, property_data: Pro
 
 
 async def delete_property(db: AsyncSession, property_id: int) -> None:
+    property = await get_property(db,property_id)
+    
     try:
-        property = await get_property(db,property_id)
         await db.delete(property)
         await db.commit()
     except Exception as e:
         await db.rollback()
         f_msg = 'An error occurred while deleting property.'
         d_msg = f'{f_msg} Reason: {e}'
-        print(d_msg)
+        if DEBUG:
+            logger.error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f_msg
@@ -88,26 +91,34 @@ async def get_property(db: AsyncSession, property_id: int) -> Property:
         if not property:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
         return property
+    except HTTPException as e:
+        raise e
     except Exception as e:
         f_msg = 'An error occurred while fetching property.'
         d_msg = f'{f_msg} Reason: {e}'
-        print(d_msg)
+        if DEBUG:
+            logger.error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f_msg
         )
 
 
-async def list_properties(db: AsyncSession, skip: int = 0, limit: int = 20) -> list[Property]:
+async def list_properties(db: AsyncSession, page: int, size: int) -> list[Property]:
+    offset = (page - 1) * size
     try:
         result = await db.execute(
-            select(Property).offset(skip).limit(limit).order_by(Property.id.desc())
+            select(Property)
+            .order_by(Property.id.desc())
+            .offset(offset)
+            .limit(size)
         )
         return result.scalars().all()
     except Exception as e:
         f_msg = 'An error occurred while listing properties.'
         d_msg = f'{f_msg} Reason: {e}'
-        print(d_msg)
+        if DEBUG:  
+            logger.error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f_msg

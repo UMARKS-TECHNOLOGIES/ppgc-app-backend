@@ -2,6 +2,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from . import payload
 from ppgc_backend.tests.auth.test_user_creation import create_test_user
 from ppgc_backend.app.controllers.auth.services import fetch_access_token
 from ppgc_backend.tests.activity.test_controller.test_objects import area_template
@@ -23,25 +24,6 @@ async def test_delete_property(client_fixture):
     headers = {"Authorization": f"Bearer {token}"}
 
     # --- Step 1: Create a property to delete
-    cover_image = {
-        "secure_url": "http://example.com/cover.jpg",
-        "public_id": "cover123"
-    }
-    other_images = [{
-        "secure_url": "http://example.com/cover.jpg",
-        "public_id": "cover124"
-    }]
-    payload = {
-        "title": "Property To Delete",
-        "price": "400000.00",
-        "description": "A property that will be deleted",
-        "availability": "available",
-        "type": "apartment",
-        "cover_image": cover_image,
-        "other_images": other_images,
-        "features": {"bedrooms": 2, "bathrooms": 1, "parking": True},
-        "area": {**area_template},
-    }
     create_response = await httpx_client.post(
         "/properties/",
         json=payload,
@@ -52,14 +34,14 @@ async def test_delete_property(client_fixture):
 
     # --- Step 2: Delete the property
     delete_response = await httpx_client.delete(
-        f"/properties/{property_id}",
+        f"/properties/{property_id}/",
         headers=headers
     )
     assert delete_response.status_code == 204
 
     # --- Step 3: Ensure property is deleted (should return 404)
     get_response = await httpx_client.get(
-        f"/properties/{property_id}",
+        f"/properties/{property_id}/",
         headers=headers
     )
-    assert get_response.status_code
+    assert get_response.status_code == 404
