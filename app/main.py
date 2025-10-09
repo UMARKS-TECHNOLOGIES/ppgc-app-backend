@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from contextlib import asynccontextmanager
 from ppgc_backend.app.controllers.auth import routes as auth_routes
+from ppgc_backend.app.controllers.logs import routes as logs_routes
 from ppgc_backend.app.controllers.hotels import routes as hotel_routes
 from ppgc_backend.app.controllers.auth.services import initialize_admin
 from ppgc_backend.app.controllers.bookings import routes as bookings_routes
@@ -88,12 +89,12 @@ async def test_database(
         }
 
 # Include routers
+app.include_router(logs_routes.router)
 app.include_router(auth_routes.router)
 app.include_router(hotel_routes.router)
 app.include_router(bookings_routes.router)
 app.include_router(inspection_routes.router)
 app.include_router(properties_routes.router)
-# app.include_router(activity.router)
 # app.include_router(search.router)
 # app.include_router(settings.router)
 # app.include_router(roi.router)

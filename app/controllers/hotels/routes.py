@@ -15,7 +15,18 @@ from .schemas import (
     HotelCreate, 
     HotelResponse, 
 )
-from .services import create_hotel, get_hotel, create_room, get_room
+from .services import (
+    get_room,
+    get_rooms,
+    get_hotel,
+    update_room,
+    create_room, 
+    delete_room,
+    create_hotel,
+    update_hotel,
+    delete_hotel,
+    paginated_hotel,
+)
 
 
 router = APIRouter(prefix="/hotel", tags=["hotels"])
@@ -32,16 +43,13 @@ async def add_hotel(
 
 
 @router.get("/all/", response_model=list[HotelResponse])
-async def get_all_hotels(
+async def get_all_hotels_with_pagination(
     page: int = 1,
     size: int = 20,
     db: AsyncSession = Depends(get_db)
 ):
     """Get all hotels with pagination."""
-    offset = (page - 1) * size
-    result = await db.execute(select(Hotel).offset(offset).limit(size).order_by(Hotel.id.desc()))
-    hotels = result.scalars().all()
-    return hotels
+    return await paginated_hotel(page, size, db)
 
 
 @router.get("/{hotel_id}/", response_model=HotelResponse)
@@ -70,85 +78,43 @@ async def fetch_room(room_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.patch("/rooms/{room_id}/", response_model=RoomResponse)
-async def update_room(
+async def update_room_endpoint(
     room_id: int,
     room_data: RoomCreate = Body(...),
     _: User = Depends(require_roles("staff", "admin")),
     db: AsyncSession = Depends(get_db)
 ):
-    try:
-        room = await db.get(Room, room_id)
-        if not room:
-            raise HTTPException(status_code=404, detail="Room not found")
-        for field, value in room_data.model_dump(exclude_unset=True).items():
-            setattr(room, field, value)
-        await db.commit()
-        await db.refresh(room)
-        return room
-    except Exception as e:
-        await db.rollback()
-        f_msg = 'An error occurred while updating room.'
-        d_msg = f'{f_msg} Reason: {e}'
-        print(d_msg)
-        raise HTTPException(status_code=500, detail=f_msg)
+    return await update_room(db, room_id, room_data)
 
 
 @router.get("/{hotel_id}/rooms/", response_model=list[RoomResponse])
-async def get_hotel_rooms(hotel_id: int, db: AsyncSession = Depends(get_db)):
-    try:
-        result = await db.execute(select(Room).where(Room.hotel_id == hotel_id))
-        return result.scalars().all()
-    except Exception as e:
-        f_msg = 'An error occurred while fetching hotel rooms.'
-        d_msg = f'{f_msg} Reason: {e}'
-        print(d_msg)
-        raise HTTPException(status_code=500, detail=f_msg)
+async def get_hotel_rooms_endpoint(hotel_id: int, db: AsyncSession = Depends(get_db)):
+    return await get_rooms(db, hotel_id)
 
 
 @router.delete("/rooms/{room_id}/", status_code=204)
-async def delete_room(
+async def delete_room_endpoint(
     room_id: int,
     _: User = Depends(require_roles("staff", "admin")),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(delete(Room).where(Room.id == room_id))
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Room not found")
-    await db.commit()
+    return await delete_room(db, room_id)
 
 
 @router.patch("/{hotel_id}/", response_model=HotelResponse)
-async def update_hotel(
+async def update_hotel_endpoint(
     hotel_id: int,
     hotel_data: HotelUpdate = Body(...),
     _: User = Depends(require_roles("staff", "admin")),
     db: AsyncSession = Depends(get_db)
 ):
-    hotel = await db.get(Hotel, hotel_id)
-    if not hotel:
-        raise HTTPException(status_code=404, detail="Hotel not found")
-    try:
-        for field, value in hotel_data.model_dump(exclude_unset=True).items():
-            setattr(hotel, field, value)
-        await db.commit()
-        await db.refresh(hotel)
-        return hotel
-    except Exception as e:
-        await db.rollback()
-        f_msg = 'An error occurred while updating hotel.'
-        d_msg = f'{f_msg} Reason: {e}'
-        print(d_msg)
-        raise HTTPException(status_code=500, detail=f_msg)
+    return await update_hotel(db,hotel_id,hotel_data)
 
 
 @router.delete("/{hotel_id}/", status_code=204)
-async def delete_hotel(
+async def delete_hotel_endpoint(
     hotel_id: int,
     _: User = Depends(require_roles("staff", "admin")),
     db: AsyncSession = Depends(get_db)
 ):
-    hotel = await db.get(Hotel, hotel_id)
-    if not hotel:
-        raise HTTPException(status_code=404, detail="Hotel not found")
-    await db.delete(hotel)
-    await db.commit()
+    return await delete_hotel(db, hotel_id)

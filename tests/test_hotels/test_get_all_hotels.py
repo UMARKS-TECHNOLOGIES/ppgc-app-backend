@@ -18,19 +18,43 @@ async def test_get_all_hotels(client_fixture):
     headers = {"Authorization": f"Bearer {token}"}
 
     # Create a hotel to ensure there is at least one
-    hotel_data = { **hotel_data_template }
-    response = await httpx_client.post(
-        "/hotel/",
-        json=hotel_data,
-        headers=headers,
-    )
-    assert response.status_code == 201
+    n = 9
+    for i in range(n):
+        hotel_data = { 
+            **hotel_data_template,
+            'cover_image': {
+                **hotel_data_template['cover_image'],
+                'public_id': f'img{i}'
+            },
+            'other_images':[
+                {             
+                    **hotel_data_template['cover_image'],
+                    'public_id': f'img{i}{j}'
+                } for j in range (2)
+            ],
+        }
+        response = await httpx_client.post(
+            "/hotel/",
+            json=hotel_data,
+            headers=headers,
+        )
+        assert response.status_code == 201
 
-    # Get all hotels (paginated)
+    # Get first pagination
+    size=5
     response = await httpx_client.get(
-        "/hotel/all/?page=1&size=10",
+        f"/hotel/all/?page=1&size={size}",
     )
     assert response.status_code == 200
     hotels = response.json()
     assert isinstance(hotels, list)
-    assert any(hotel["name"] == hotel_data["name"] for hotel in hotels)
+    assert len(hotels) == size
+
+    # Get second pagination
+    response = await httpx_client.get(
+        f"/hotel/all/?page=2&size={size}",
+    )
+    assert response.status_code == 200
+    hotels = response.json()
+    assert isinstance(hotels, list)
+    assert len(hotels) == (n-size)
