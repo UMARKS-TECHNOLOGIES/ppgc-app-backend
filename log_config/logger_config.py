@@ -48,3 +48,8 @@ def truncate_log_file(file_path, max_lines=100):
         # Log the error using the log_message function but prevent recursion
         error_logger = get_logger("error")
         error_logger.error(f"Truncation error: {e}")
+
+
+if __name__ == "__main__":
+    log_error('First error')
+    print('error logged')

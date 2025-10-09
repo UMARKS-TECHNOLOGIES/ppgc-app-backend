@@ -42,8 +42,8 @@ from ppgc_backend.config.settings import (
 from ppgc_backend.app.schemas.auth_schemas import (
     ProbeUserExistenceSchema,
 )
+from ppgc_backend.log_config.logger_config import log_error
 from ppgc_backend.app.enums import EmailManagementReasonChoice
-from ppgc_backend.config.postgres_connection_manager import get_postgres_instance
 
 
 import logging
@@ -141,9 +141,12 @@ async def check_username_email_availability(db: AsyncSession, user_data: ProbeUs
 def require_roles(*allowed_roles: tuple[str]) -> Callable:
     async def wrapper(current_user: User = Depends(decode_user_from_token)):
         if current_user.user_role not in allowed_roles:
+            detail="You do not have permission to perform this action"
+            if DEBUG:
+                log_error(detail)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to perform this action"
+                detail=detail
             )
         return current_user  # Optionally return for access
     return wrapper
