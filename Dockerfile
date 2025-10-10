@@ -5,7 +5,17 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Install system-level dependencies
-RUN apt-get update && apt-get install -y gcc libpq-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    make \
+    libffi-dev \
+    libpq-dev \
+    libssl-dev \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 
 # Copy only the requirements file first (this rarely changes)
 COPY ./requirements.txt /app/requirements.txt

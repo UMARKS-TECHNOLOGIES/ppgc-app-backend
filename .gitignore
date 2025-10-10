@@ -109,3 +109,4 @@ media/
 z.ini
 utility_scripts
 alembic/past_versions/
+ppgc_backend/logs/

@@ -130,3 +130,4 @@ z.ini
 render.yaml
 runtime.txt
 alembic/past_versions/
+ppgc_backend/logs/
