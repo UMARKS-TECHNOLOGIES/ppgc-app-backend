@@ -26,9 +26,6 @@ async def test_add_property(client_fixture):
     token = fetch_access_token(user=created_user)["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     
-    # --- Step 1: Create dependencies (Area + CloudImageDetail)
-    
-
     # --- Step 3: Send request
     response = await httpx_client.post(
         "/properties/", 
