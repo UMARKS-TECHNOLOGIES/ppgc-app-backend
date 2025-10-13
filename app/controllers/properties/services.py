@@ -7,6 +7,7 @@ from ppgc_backend.app.initiator import logger
 from ppgc_backend.config.settings import DEBUG
 from .schemas import PropertyCreate, PropertyUpdate
 from ppgc_backend.app.models import Area, CloudImageDetail
+from ppgc_backend.log_config.logger_config import log_error
 
 async def create_property(db: AsyncSession, property_data: PropertyCreate) -> Property:
     try:
@@ -38,8 +39,9 @@ async def create_property(db: AsyncSession, property_data: PropertyCreate) -> Pr
         await db.rollback()
         f_msg = 'An error occurred while creating property.'
         d_msg = f'{f_msg} Reason: {e}'
-        if DEBUG:
-            logger.error(d_msg)
+        # if DEBUG:
+        logger.error(d_msg)
+        log_error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f_msg
@@ -61,6 +63,7 @@ async def update_property(db: AsyncSession, property_id: int, property_data: Pro
         d_msg = f'{f_msg} Reason: {e}'
         if DEBUG:
             logger.error(d_msg)
+        log_error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f_msg
@@ -79,6 +82,7 @@ async def delete_property(db: AsyncSession, property_id: int) -> None:
         d_msg = f'{f_msg} Reason: {e}'
         if DEBUG:
             logger.error(d_msg)
+        log_error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f_msg
@@ -98,6 +102,7 @@ async def get_property(db: AsyncSession, property_id: int) -> Property:
         d_msg = f'{f_msg} Reason: {e}'
         if DEBUG:
             logger.error(d_msg)
+        log_error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f_msg
@@ -119,6 +124,7 @@ async def list_properties(db: AsyncSession, page: int, size: int) -> list[Proper
         d_msg = f'{f_msg} Reason: {e}'
         if DEBUG:  
             logger.error(d_msg)
+        log_error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f_msg

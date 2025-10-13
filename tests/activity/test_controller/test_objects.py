@@ -1,11 +1,11 @@
 # Test data
 area_template = {
-    'country':'Sri-lanka',
-    'state_or_province': 'Mogadishu',
-    'city_or_town': 'Pisque Central', 
-    'street': 'No 11 Jokey street',
+    "country": "Sri-lanka",
+    "state_or_province": "Mogadishu",
+    "city_or_town": "Pisque Central", 
+    "street": "No 11 Jokey street",
     "zip_or_postal_code": "",
-	"building_name_or_suite": "",
+    "building_name_or_suite": "",
 }
 
 feature_obj = {
