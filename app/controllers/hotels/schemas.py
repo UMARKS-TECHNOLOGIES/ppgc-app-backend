@@ -59,7 +59,7 @@ class RoomBase(BaseModel):
 
 
 class RoomCreate(RoomBase):
-    hotel_id: int
+    pass
 
 
 class RoomResponse(RoomBase):

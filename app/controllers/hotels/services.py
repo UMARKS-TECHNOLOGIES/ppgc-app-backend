@@ -31,8 +31,8 @@ async def create_hotel(db: AsyncSession, hotel_data: HotelCreate):
         await db.rollback()
         f_msg = 'An error occured while creating hotel.'
         d_msg = f'{f_msg} Reason: {e}'
-        if DEBUG:
-            logger.error(d_msg)
+        #if DEBUG:
+        logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -68,8 +68,8 @@ async def paginated_hotel(
         await db.rollback()
         f_msg = 'An error occurred while creating room.'
         d_msg = f'{f_msg} Reason: {e}'
-        if DEBUG:
-            logger.error(d_msg)
+        #if DEBUG:
+        logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -77,10 +77,10 @@ async def paginated_hotel(
         )
 
 
-async def create_room(db: AsyncSession, room_data: dict):
+async def create_room(db: AsyncSession, hotel_id: int, room_data: dict):
     """Creates a new room in a hotel."""
     try:
-        room = Room(**room_data)
+        room = Room(**room_data, hotel_id=hotel_id)
         db.add(room)
         await db.commit()
         await db.refresh(room)
@@ -89,8 +89,8 @@ async def create_room(db: AsyncSession, room_data: dict):
         await db.rollback()
         f_msg = 'An error occurred while creating room.'
         d_msg = f'{f_msg} Reason: {e}'
-        if DEBUG:
-            logger.error(d_msg)
+        #if DEBUG:
+        logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -111,8 +111,8 @@ async def update_hotel(db: AsyncSession,hotel_id:int, hotel_data: HotelUpdate):
         await db.rollback()
         f_msg = 'An error occurred while updating hotel.'
         d_msg = f'{f_msg} Reason: {e}'
-        if DEBUG:
-            logger.error(d_msg)
+        #if DEBUG:
+        logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(status_code=500, detail=f_msg)
 
@@ -128,8 +128,8 @@ async def delete_hotel(db: AsyncSession, hotel_id: int):
         await db.rollback()
         f_msg = 'An error occurred while deleting hotel.'
         d_msg = f'{f_msg} Reason: {e}'
-        if DEBUG:
-            logger.error(d_msg)
+        #if DEBUG:
+        logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(status_code=500, detail=f_msg)
 
@@ -144,8 +144,8 @@ async def delete_room(db: AsyncSession, room_id: int):
         await db.rollback()
         f_msg = 'An error occurred while deleting room.'
         d_msg = f'{f_msg} Reason: {e}'
-        if DEBUG:
-            logger.error(d_msg)
+        #if DEBUG:
+        logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(status_code=500, detail=f_msg)
 
@@ -165,8 +165,8 @@ async def get_rooms(db: AsyncSession, hotel_id: int):
     except Exception as e:
         f_msg = 'An error occurred while fetching hotel rooms.'
         d_msg = f'{f_msg} Reason: {e}'
-        if DEBUG:
-            print(d_msg)
+        #if DEBUG:
+        logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(status_code=500, detail=f_msg)
     
@@ -185,7 +185,7 @@ async def update_room(db: AsyncSession, room_id: int, room_data: RoomCreate):
         await db.rollback()
         f_msg = 'An error occurred while updating room.'
         d_msg = f'{f_msg} Reason: {e}'
-        if DEBUG:
-            logger.info(d_msg)
+        #if DEBUG:
+        logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(status_code=500, detail=f_msg)

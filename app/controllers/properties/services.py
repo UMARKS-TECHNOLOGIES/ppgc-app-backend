@@ -61,8 +61,8 @@ async def update_property(db: AsyncSession, property_id: int, property_data: Pro
         await db.rollback()
         f_msg = 'An error occurred while updating property.'
         d_msg = f'{f_msg} Reason: {e}'
-        if DEBUG:
-            logger.error(d_msg)
+        #if DEBUG:
+        logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -80,8 +80,8 @@ async def delete_property(db: AsyncSession, property_id: int) -> None:
         await db.rollback()
         f_msg = 'An error occurred while deleting property.'
         d_msg = f'{f_msg} Reason: {e}'
-        if DEBUG:
-            logger.error(d_msg)
+        #if DEBUG:
+        logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -100,8 +100,8 @@ async def get_property(db: AsyncSession, property_id: int) -> Property:
     except Exception as e:
         f_msg = 'An error occurred while fetching property.'
         d_msg = f'{f_msg} Reason: {e}'
-        if DEBUG:
-            logger.error(d_msg)
+        #if DEBUG:
+        logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -122,8 +122,8 @@ async def list_properties(db: AsyncSession, page: int, size: int) -> list[Proper
     except Exception as e:
         f_msg = 'An error occurred while listing properties.'
         d_msg = f'{f_msg} Reason: {e}'
-        if DEBUG:  
-            logger.error(d_msg)
+        #if DEBUG:  
+        logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -35,11 +35,11 @@ async def test_create_room(client_fixture):
     hotel_id = created_hotel["id"]
 
     # Prepare room data
-    room_data = {**room_data_template, "hotel_id": hotel_id}
+    room_data = {**room_data_template}
 
     # Create room
     response = await httpx_client.post(
-        "/hotel/create-room/",
+        f"/hotel/{hotel_id}/create-room/",
         json=room_data,
         headers=headers,
     )

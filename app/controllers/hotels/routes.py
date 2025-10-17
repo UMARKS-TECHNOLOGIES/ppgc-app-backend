@@ -61,14 +61,15 @@ async def fetch_hotel(
     return await get_hotel(db, hotel_id)
 
 
-@router.post("/create-room/", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{hotel_id}/create-room/", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
 async def add_room(
+    hotel_id: int,
     room_data: RoomCreate, 
     _: User = Depends(require_roles("staff", "admin")),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new room."""
-    return await create_room(db, room_data.model_dump())
+    return await create_room(db, hotel_id, room_data.model_dump())
 
 
 @router.get("/rooms/{room_id}/", response_model=RoomResponse)
