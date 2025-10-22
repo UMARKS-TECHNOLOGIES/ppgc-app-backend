@@ -38,18 +38,13 @@ async def test_patch_booking(client_fixture):
     # Create room
     room_data = {**room_data_template, "hotel_id": hotel_id}
     response = await httpx_client.post(
-        "/hotel/create-room/",
+        f"/hotel/{hotel_id}/create-room/",
         json=room_data,
         headers=headers,
     )
     assert response.status_code == 201
     created_room = response.json()
     room_id = created_room["id"]
-
-    # Switch user to normal for booking
-    created_user.user_role = 'user'
-    test_db.add(created_user)
-    await test_db.commit()
 
     # Create booking
     booking_data = {
@@ -68,7 +63,7 @@ async def test_patch_booking(client_fixture):
     # Patch booking (e.g., change guests)
     patch_data = {"guests": 3}
     response = await httpx_client.patch(
-        f"/bookings/{booking_id}",
+        f"/bookings/{booking_id}/",
         json=patch_data,
         headers=headers,
     )

@@ -37,7 +37,7 @@ async def test_update_room(client_fixture):
     # Create room
     room_data = {**room_data_template, "hotel_id": hotel_id}
     response = await httpx_client.post(
-        "/hotel/create-room/",
+        f"/hotel/{hotel_id}/create-room/",
         json=room_data,
         headers=headers,
     )
@@ -50,7 +50,13 @@ async def test_update_room(client_fixture):
         "room_type": "suite",
         "price_per_night": 999.99,
         "max_occupancy": 4,
-        "hotel_id": hotel_id
+        "bed_count": 3,
+        "description": "xy",
+        "status": "maintenance",
+        "other_images": [
+            {"secure_url": "https://example.com/img1.jpg", "public_id": "img100"},
+            {"secure_url": "https://example.com/img2.jpg", "public_id": "img200"}
+        ],
     }
     response = await httpx_client.patch(
         f"/hotel/rooms/{room_id}/",
@@ -63,3 +69,7 @@ async def test_update_room(client_fixture):
     assert data["room_type"] == update_data["room_type"]
     assert data["price_per_night"] == update_data["price_per_night"]
     assert data["max_occupancy"] == update_data["max_occupancy"]
+    assert data["bed_count"] == update_data["bed_count"]
+    assert data["description"] == update_data["description"]
+    assert data["status"] == update_data["status"]
+    assert not data["available"]

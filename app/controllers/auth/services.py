@@ -17,7 +17,10 @@ from ppgc_backend.app.models import (
     User,
     TransientVerificationStore
 )
-from .schemas import UserRegistrationSchema
+from ppgc_backend.app.controllers.auth.schemas import (
+    UserRegistrationSchema,
+    ProbeUserExistenceSchema,
+)
 from ppgc_backend.config import env_is_test
 from ppgc_backend.app.utils.store import (
     send_email,
@@ -38,9 +41,6 @@ from ppgc_backend.config.settings import (
     SUPER_ADMIN_PASSWORD,
     TEST_PASSWORD_RESET_TTL,
     SUPER_ADMIN_EMAIL_ADDRESS,
-)
-from ppgc_backend.app.schemas.auth_schemas import (
-    ProbeUserExistenceSchema,
 )
 from ppgc_backend.log_config.logger_config import log_error
 from ppgc_backend.app.enums import EmailManagementReasonChoice

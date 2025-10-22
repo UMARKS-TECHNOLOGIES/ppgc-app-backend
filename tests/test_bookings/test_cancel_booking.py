@@ -38,7 +38,7 @@ async def test_cancel_booking(client_fixture):
     # Create room
     room_data = {**room_data_template, "hotel_id": hotel_id}
     response = await httpx_client.post(
-        "/hotel/create-room/",
+        f"/hotel/{hotel_id}/create-room/",
         json=room_data,
         headers=headers,
     )
@@ -67,7 +67,7 @@ async def test_cancel_booking(client_fixture):
 
     # Cancel booking
     response = await httpx_client.delete(
-        f"/bookings/{booking_id}",
+        f"/bookings/{booking_id}/",
         headers=headers,
     )
     assert response.status_code == 200

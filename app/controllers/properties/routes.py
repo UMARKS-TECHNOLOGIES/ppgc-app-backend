@@ -30,7 +30,7 @@ async def add_property(
 
 
 @router.patch("/{property_id}/", response_model=PropertyResponse)
-async def edit_property(
+async def update_property_endpoint(
     property_id: int,
     property_data: PropertyUpdate,
     db: AsyncSession = Depends(get_db),

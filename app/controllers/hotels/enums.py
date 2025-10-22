@@ -12,3 +12,8 @@ class BookingStatus(str, enum.Enum):
     confirmed = "confirmed"
     cancelled = "cancelled"
     completed = "completed"
+
+class RoomStatus(str, enum.Enum):
+    available = "available"
+    occupied = "occupied"
+    maintenance = "maintenance"

@@ -87,3 +87,39 @@ class SendPasswordResetMail(BaseModel):
 
 class Email(BaseModel):
     email: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class SigninResponse(Token):
+    pass
+
+
+class UserSigninSchema(BaseModel):
+    username: Optional[str] = None
+    email: Optional[str] = None
+    password: str
+
+class ProbeUserExistenceSchema(BaseModel):
+    username: str
+    email: str
+
+class SendEmailCodeSchema(ProbeUserExistenceSchema):
+    pass
+
+class RequestEmailCodeSchema(BaseModel):
+    email: str
+    username: str
+    password: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    #last_name: str
+    # Add other fields as needed
+
+
+class SignupCodeVerificationSchema():
+    verification_code: str
+    fullname: str
+    client_type: str

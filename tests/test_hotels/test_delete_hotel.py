@@ -33,6 +33,7 @@ async def test_delete_hotel(client_fixture):
     assert response.status_code == 201
     created_hotel = response.json()
     hotel_id = created_hotel["id"]
+    assert created_hotel['manager_id'] == created_user.id
 
     # Delete hotel
     response = await httpx_client.delete(

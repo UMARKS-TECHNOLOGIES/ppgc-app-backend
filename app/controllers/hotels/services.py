@@ -1,7 +1,9 @@
+from typing import Callable
+from functools import wraps
 from sqlalchemy import delete
 from sqlalchemy.future import select
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import HTTPException, status, Depends, Path
 
 from .schemas import (
     RoomCreate,
@@ -10,18 +12,49 @@ from .schemas import (
 )
 from .models import Hotel, Room
 from ppgc_backend.app.models import Area
+from ppgc_backend.app.database import get_db
 from ppgc_backend.app.initiator import logger
 from ppgc_backend.config.settings import DEBUG
 from ppgc_backend.log_config.logger_config import log_error
+from ppgc_backend.app.controllers.actors.models import User
+from ppgc_backend.app.controllers.auth.services import require_roles 
 
-async def create_hotel(db: AsyncSession, hotel_data: HotelCreate):
+
+async def require_manager(
+    hotel_id: int = Path(...),
+    db: AsyncSession = Depends(get_db),
+    requester: User = Depends(require_roles("staff", "admin")),
+):
+    query = await db.execute(
+        select(Hotel)
+        .where(
+            Hotel.id == hotel_id,
+            Hotel.manager_id == requester.id
+        )
+    )
+    hotel = query.scalars().first()
+
+    if not hotel:
+        detail = "You do not have permission to perform this action"
+        if DEBUG:
+            logger.error(detail)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=detail
+        )
+
+    return requester  # Optionally return for access
+
+
+async def create_hotel(db: AsyncSession, hotel_data: HotelCreate, manager_id: int):
     """Creates a new hotel."""
     try:
         _hotel_data = hotel_data.model_dump()
         area_data = _hotel_data.pop('area') 
         hotel = Hotel(
             **_hotel_data,
-            area = Area(**area_data)
+            area = Area(**area_data),
+            manager_id = manager_id
         )
         db.add(hotel)
         await db.commit()
@@ -77,7 +110,7 @@ async def paginated_hotel(
         )
 
 
-async def create_room(db: AsyncSession, hotel_id: int, room_data: dict):
+async def create_room(hotel_id: int, db: AsyncSession, room_data: dict):
     """Creates a new room in a hotel."""
     try:
         room = Room(**room_data, hotel_id=hotel_id)
@@ -97,7 +130,8 @@ async def create_room(db: AsyncSession, hotel_id: int, room_data: dict):
             detail=f_msg
         )
 
-async def update_hotel(db: AsyncSession,hotel_id:int, hotel_data: HotelUpdate):
+
+async def update_hotel(db: AsyncSession, hotel_id:int, hotel_data: HotelUpdate):
     hotel = await db.get(Hotel, hotel_id)
     if not hotel:
         raise HTTPException(status_code=404, detail="Hotel not found")
@@ -158,9 +192,16 @@ async def get_room(db: AsyncSession, room_id: int):
     return room
 
 
-async def get_rooms(db: AsyncSession, hotel_id: int):
+async def get_rooms(db: AsyncSession, hotel_id: int, page: int, size: int):
     try:
-        result = await db.execute(select(Room).where(Room.hotel_id == hotel_id))
+        offset = (page - 1) * size
+        result = await db.execute(
+            select(Room)
+            .where(Room.hotel_id == hotel_id)
+            .order_by(Room.id.desc())
+            .limit(size)
+            .offset(offset)
+        )
         return result.scalars().all()
     except Exception as e:
         f_msg = 'An error occurred while fetching hotel rooms.'

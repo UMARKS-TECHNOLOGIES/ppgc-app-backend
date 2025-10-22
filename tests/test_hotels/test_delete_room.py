@@ -37,7 +37,7 @@ async def test_delete_room_by_id(client_fixture):
     # Create room
     room_data = {**room_data_template, "hotel_id": hotel_id}
     response = await httpx_client.post(
-        "/hotel/create-room/",
+        f"/hotel/{hotel_id}/create-room/",
         json=room_data,
         headers=headers,
     )

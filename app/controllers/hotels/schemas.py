@@ -1,25 +1,31 @@
-from enum import Enum
-from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from typing import Optional, List, get_type_hints
+from pydantic import BaseModel, ConfigDict, create_model
 
-
-from ppgc_backend.app.schemas.area_schema import AreaSchema
+from .enums import RoomType, RoomStatus
+from ppgc_backend.app.schemas import AreaSchema
+from ppgc_backend.app.schemas import CloudImageCreateSchema
 from ppgc_backend.app.controllers.ratings.schemas import RatingResponseSchema
 
-class OptionalBaseModel(BaseModel):
-    """Automatically makes all fields optional in subclasses."""
-    def __init_subclass__(cls, **kwargs):
-        for field in cls.__annotations__:
-            cls.__annotations__[field] = Optional[cls.__annotations__[field]]
 
+def make_optional_model(name: str, base_model: type[BaseModel]) -> type[BaseModel]:
+    """Return a new model where all fields from `base_model` are optional."""
+    annotations = get_type_hints(base_model)
+    optional_fields = {
+        k: (Optional[v], None) for k, v in annotations.items()
+    }
+    return create_model(name, __base__=base_model, **optional_fields)
 
-class RoomTypeEnum(str, Enum):
-    SINGLE = "single"
-    DOUBLE = "double"
-    SUITE = "suite"
-    DELUXE = "deluxe"
-    FAMILY = "family"
+class AllOptionalMeta(type(BaseModel)):
+    def __new__(mcls, name, bases, namespace, **kwargs):
+        annotations = namespace.get('__annotations__', {})
+        for field, field_type in annotations.items():
+            if not str(field_type).startswith('typing.Optional'):
+                annotations[field] = Optional[field_type]
+        return super().__new__(mcls, name, bases, namespace, **kwargs)
+
+class OptionalBaseModel(BaseModel, metaclass=AllOptionalMeta):
+    pass
 
 class HotelImageFmt(BaseModel):
     public_id: str
@@ -38,22 +44,30 @@ class HotelBase(BaseModel):
 class HotelCreate(HotelBase):
     pass
 
-class HotelUpdate(OptionalBaseModel):
+class HotelUpdate(HotelBase):
     name: Optional[str] = None
     area: Optional[AreaSchema] = None
     description: Optional[str] = None
-    cover_image: Optional[HotelImageFmt] = None
-    other_images: Optional[list[HotelImageFmt]] = None
+    cover_image: CloudImageCreateSchema
+    other_images: Optional[List[CloudImageCreateSchema]] = None
 
 class HotelResponse(HotelBase):
     id: int
-    created_at: datetime
     total_rooms: int
+    manager_id: Optional[int] = None
+    created_at: datetime
+    receptionist_id: Optional[int] = None
 
 class RoomBase(BaseModel):
-    room_type: RoomTypeEnum
+    room_type: RoomType
+    room_number: str
     price_per_night: float
     max_occupancy: int
+    bed_count: Optional[int] = 1
+    description: Optional[str] = None
+    amenities: Optional[list[str]] = None
+    cover_image: CloudImageCreateSchema
+    other_images: Optional[List[CloudImageCreateSchema]] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -61,8 +75,21 @@ class RoomBase(BaseModel):
 class RoomCreate(RoomBase):
     pass
 
+class RoomPatch(RoomBase):
+    room_type: Optional[RoomType] = None
+    room_number: Optional[str] = None
+    price_per_night: Optional[float] = None
+    max_occupancy: Optional[int] = None
+    bed_count: Optional[int] = 1
+    description: Optional[str] = None
+    amenities: Optional[list[str]] = None
+    cover_image: Optional[CloudImageCreateSchema] = None
+    other_images: Optional[List[CloudImageCreateSchema]] = None
+    status: Optional[RoomStatus] = "available"
+
 
 class RoomResponse(RoomBase):
     id: int
     available: bool
     created_at: datetime
+    status: RoomStatus

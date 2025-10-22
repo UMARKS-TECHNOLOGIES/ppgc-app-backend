@@ -1,15 +1,15 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 
-
 from ppgc_backend.app.database import get_db
-from .schemas import BookingCreate, BookingResponse, BookingUpdate, BookingStatus
-from ppgc_backend.app.controllers.actors.enums import UserRoleChoice
+from ppgc_backend.app.controllers.actors.models import User
 from ppgc_backend.app.controllers.auth.services import (
     decode_user_from_token,
 )
-from ppgc_backend.app.controllers.actors.models import User
-from .services import create_booking, get_booking, cancel_booking
+from ppgc_backend.app.controllers.actors.enums import UserRoleChoice
+from .schemas import BookingCreate, BookingResponse, BookingUpdate, BookingStatus
+from .services import create_booking, get_all_bookings, update_booking, cancel_booking, require_booking_priviledges as require_booker_rights
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
@@ -24,46 +24,41 @@ async def book_hotel(
     return await create_booking(db, current_user.id, booking_data)
 
 
-@router.get("/{booking_id}", response_model=BookingResponse)
-async def fetch_booking(
-    booking_id: int,
+@router.get("/all/", response_model=List[BookingResponse], status_code=status.HTTP_200_OK)
+async def all_hotels(
+    page: int = 1,
+    size: int = 20,
     db: AsyncSession = Depends(get_db),
-    _ = Depends(decode_user_from_token)
+    current_user: User = Depends(decode_user_from_token)
+):
+    """gets hotel bookings of current_user."""
+    return await get_all_bookings(db, current_user.id, page, size)
+
+
+@router.get("/{booking_id}/", response_model=BookingResponse)
+async def fetch_booking(
+    requester_et_booking: tuple = Depends(require_booker_rights)
 ):
     """Retrieve a booking by ID."""
-    return await get_booking(db, booking_id)
+    _, booking = requester_et_booking
+    return booking
 
 
-@router.delete("/{booking_id}", response_model=BookingResponse)
+@router.delete("/{booking_id}/", response_model=BookingResponse)
 async def cancel_hotel_booking(
-    booking_id: int,
     db: AsyncSession = Depends(get_db),
-    user = Depends(decode_user_from_token)
+    requester_et_booking: tuple = Depends(require_booker_rights)
 ):
     """Cancel a pending booking."""
-    return await cancel_booking(db, user, booking_id)
+    _, booking = requester_et_booking
+    return await cancel_booking(db, booking)
 
 
-@router.patch("/{booking_id}", response_model=BookingResponse)
+@router.patch("/{booking_id}/", response_model=BookingResponse)
 async def patch_booking(
-    booking_id: int,
     booking_data: BookingUpdate = Body(...),
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(decode_user_from_token)
+    requester_et_booking: tuple = Depends(require_booker_rights)
 ):
-    booking = await get_booking(db, booking_id)
-    # Only allow patch if booking is pending
-    if booking.status != BookingStatus.pending:
-        raise HTTPException(status_code=400, detail="Only pending bookings can be updated.")
-    # Only booker, staff, or admin can patch
-    if not (
-        booking.booker_id == user.id
-        or user.user_role in (UserRoleChoice.admin, UserRoleChoice.staff)
-    ):
-        raise HTTPException(status_code=403, detail="Not authorized to update this booking.")
-    for field, value in booking_data.model_dump(exclude_unset=True).items():
-        setattr(booking, field, value)
-    db.add(booking)
-    await db.commit()
-    await db.refresh(booking)
-    return booking
+    _, booking = requester_et_booking
+    return await update_booking(db,booking,booking_data)

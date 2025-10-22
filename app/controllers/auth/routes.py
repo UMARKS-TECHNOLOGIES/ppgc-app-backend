@@ -3,10 +3,8 @@ from fastapi import APIRouter, HTTPException, status, Depends, Body
 
 
 from ppgc_backend.app.database import get_db
-from ppgc_backend.app.schemas.auth_schemas import (
-    SigninResponse, 
-)
 from .schemas import (
+    SigninResponse,
     RequestEmailCodeSchema,
     StaffRegistrationSchema,
     RequestEmailResponseSchema,

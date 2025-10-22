@@ -45,3 +45,4 @@ async def test_create_hotel(client_fixture):
     assert data["name"] == hotel_data["name"]
     assert data["cover_image"]['secure_url'] == hotel_data["cover_image"]['secure_url']
     assert data['total_rooms'] == 0
+    assert data['manager_id'] == admin.id

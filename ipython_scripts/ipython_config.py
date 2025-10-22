@@ -4,24 +4,16 @@ from IPython import get_ipython  # Import IPython for interactive use
 from sqlalchemy.orm import joinedload
 from sqlalchemy import delete, insert
 
-from property_street_backend.app.database import AsyncSessionLocal
-from property_street_backend.app.models import (
-    Asset, 
-    AssetFeature, 
-    Agent,
+from ppgc_backend.app.database import AsyncSessionLocal
+from ppgc_backend.app.models import (
     User,
-    Tag,
-    UserSetting,
 )
-from property_street_backend.app.controllers.auth import (
+from ppgc_backend.app.controllers.auth.services import (
     get_password_hash,
     create_user,
 )
-from property_street_backend.app.schemas.auth_schemas import (
+from ppgc_backend.app.controllers.auth.services import (
     UserRegistrationSchema,
-)
-from property_street_backend.app.schemas.asset_schemas import (
-    TagSchema,
 )
 
 async def setup():
@@ -35,13 +27,7 @@ async def setup():
         ipython.user_ns['insert'] = insert
         ipython.user_ns['delete'] = delete
         ipython.user_ns['joinedload'] = joinedload
-        ipython.user_ns['Asset'] = Asset
-        ipython.user_ns['AssetFeature'] = AssetFeature
-        ipython.user_ns['Agent'] = Agent
         ipython.user_ns['User'] = User
-        ipython.user_ns['UserSetting'] = UserSetting
-        ipython.user_ns['Tag'] = Tag
-        ipython.user_ns['TagSchema'] = TagSchema
         ipython.user_ns['UserRegistrationSchema'] = UserRegistrationSchema
         ipython.user_ns['get_password_hash'] = get_password_hash
         ipython.user_ns['create_user'] = create_user

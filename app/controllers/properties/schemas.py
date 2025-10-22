@@ -4,7 +4,7 @@ from typing import Optional, List
 from pydantic import BaseModel, ConfigDict
 
 from ppgc_backend.app.schemas.area_schema import AreaSchema
-from ppgc_backend.app.schemas.asset_schemas import CloudImageCreateSchema
+from ppgc_backend.app.schemas import CloudImageCreateSchema
 
 class PropertyBase(BaseModel):
     title: str

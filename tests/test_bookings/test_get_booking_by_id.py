@@ -4,8 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import booking_data_template
 from ..test_hotels import hotel_data_template, room_data_template
-from ppgc_backend.tests.auth.test_user_creation import create_test_user
 from ppgc_backend.app.controllers.auth.services import fetch_access_token
+from ppgc_backend.tests.auth.test_user_creation import create_test_user, UserRegistrationSchema
 
 @pytest.mark.asyncio
 async def test_get_booking_by_id(client_fixture):
@@ -38,18 +38,13 @@ async def test_get_booking_by_id(client_fixture):
     # Create room
     room_data = {**room_data_template, "hotel_id": hotel_id}
     response = await httpx_client.post(
-        "/hotel/create-room/",
+        f"/hotel/{hotel_id}/create-room/",
         json=room_data,
         headers=headers,
     )
     assert response.status_code == 201
     created_room = response.json()
     room_id = created_room["id"]
-
-    # Switch user to normal for booking
-    created_user.user_role = 'user'
-    test_db.add(created_user)
-    await test_db.commit()
 
     # Create booking
     booking_data = {
@@ -65,9 +60,25 @@ async def test_get_booking_by_id(client_fixture):
     created_booking = response.json()
     booking_id = created_booking["id"]
 
+    # create another staff 
+    new_user = await create_test_user(test_db, user_data = UserRegistrationSchema(
+        email="new_user@example.com",
+        pin="password123",
+        first_name="John",
+        last_name="Doe",
+        user_role="staff"
+    ))
+    new_token = fetch_access_token(user=new_user)["access_token"]
+    new_headers = {"Authorization": f"Bearer {new_token}"}
+    response = await httpx_client.get(
+        f"/bookings/{booking_id}/",
+        headers=new_headers,
+    )
+    assert response.status_code == 403
+
     # Get booking by id
     response = await httpx_client.get(
-        f"/bookings/{booking_id}",
+        f"/bookings/{booking_id}/",
         headers=headers,
     )
     assert response.status_code == 200
