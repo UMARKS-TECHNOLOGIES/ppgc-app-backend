@@ -126,7 +126,8 @@ class Room(Base):
         "Booking", 
         back_populates="room",
         lazy="selectin",
-        uselist = False
+        uselist = False,
+        cascade="all, delete-orphan",
     )
  
     __table_args__ = (

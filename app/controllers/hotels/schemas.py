@@ -48,7 +48,7 @@ class HotelUpdate(HotelBase):
     name: Optional[str] = None
     area: Optional[AreaSchema] = None
     description: Optional[str] = None
-    cover_image: CloudImageCreateSchema
+    cover_image: Optional[CloudImageCreateSchema] = None
     other_images: Optional[List[CloudImageCreateSchema]] = None
 
 class HotelResponse(HotelBase):

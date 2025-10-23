@@ -5,3 +5,4 @@ class BookingStatus(str, enum.Enum):
     confirmed = "confirmed"
     canceled = "canceled"
     completed = "completed"
+    cancelled = "cancelled"

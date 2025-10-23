@@ -60,7 +60,7 @@ async def test_get_all_bookings(client_fixture):
     created_booking = response.json()
     booking_id = created_booking["id"]
 
-    # create another staff 
+    # create another staff to test a forbidden request
     new_user = await create_test_user(test_db, user_data = UserRegistrationSchema(
         email="new_user@example.com",
         pin="password123",

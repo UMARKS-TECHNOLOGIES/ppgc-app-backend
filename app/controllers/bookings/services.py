@@ -94,6 +94,11 @@ async def get_all_bookings(db: AsyncSession, requester_id: int, page:int, size: 
 
 async def cancel_booking(db: AsyncSession, booking: Booking):
     """Cancel a booking."""
+    if booking.status == 'canceled':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Booking already canceled."
+        )
     try:
         booking.status = BookingStatus.canceled
         db.add(booking)

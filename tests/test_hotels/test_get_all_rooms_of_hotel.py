@@ -37,7 +37,9 @@ async def test_get_all_rooms_of_hotel(client_fixture):
     # Create multiple rooms
     room_ids = []
     for i in range(3):
-        room_data = {**room_data_template, "hotel_id": hotel_id}
+        room_data = {
+            **room_data_template, 
+        }
         response = await httpx_client.post(
             f"/hotel/{hotel_id}/create-room/",
             json=room_data,

@@ -37,8 +37,9 @@ async def create_property(db: AsyncSession, property_data: PropertyCreate) -> Pr
         return new_property
     except Exception as e:
         await db.rollback()
-        f_msg = 'An error occurred while creating property.'
-        d_msg = f'{f_msg} Reason: {e}'
+        detail = getattr(e.orig, 'detail', None)
+        f_msg = f'An error occurred while creating property. {detail}'
+        d_msg = f'{f_msg} \n Reason: {e}'
         # if DEBUG:
         logger.error(d_msg)
         log_error(d_msg)
