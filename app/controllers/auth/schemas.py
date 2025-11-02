@@ -123,3 +123,7 @@ class SignupCodeVerificationSchema():
     verification_code: str
     fullname: str
     client_type: str
+
+
+class PasscodeSchema(BaseModel):
+    pass_code: str

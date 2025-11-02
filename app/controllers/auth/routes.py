@@ -4,26 +4,29 @@ from fastapi import APIRouter, HTTPException, status, Depends, Body
 
 from ppgc_backend.app.database import get_db
 from .schemas import (
+    Email,
+    SigninSchema,
+    PasscodeSchema,
     SigninResponse,
+    UserResponseSchema,
+    PasswordResetSchema,
+    SendPasswordResetMail,
     RequestEmailCodeSchema,
     StaffRegistrationSchema,
     RequestEmailResponseSchema,
     GenericSuccessResponseSchema,
     VerifyEmailAndSignUserUpSchema,
-    Email,
-    SigninSchema,
-    UserResponseSchema,
-    PasswordResetSchema,
-    SendPasswordResetMail,
 )
 from .services import (
     signin,
     create_user,
+    decode_user_from_token,
     change_pin_or_password, 
     send_password_reset_mail,
     confirm_email_verification_code_and_sign_user_up,
     probe_email_uniqueness_and_request_verification_code,
 )
+from ppgc_backend.app.controllers.actors.models import User
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -86,3 +89,11 @@ async def change_password_endpoint(
         session=session,
         **data.model_dump()
     )
+
+
+@router.post("/confirm-passcode/")
+async def change_password_endpoint(
+    data: PasscodeSchema = Body(...),
+    user: User = Depends(decode_user_from_token)
+):
+    return user.pass_code == data.pass_code

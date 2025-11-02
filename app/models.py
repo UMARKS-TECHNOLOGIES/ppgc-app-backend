@@ -24,7 +24,8 @@ from ppgc_backend.app.controllers.bookings.models import Booking
 from ppgc_backend.app.controllers.hotels.models import Hotel, Room
 from ppgc_backend.app.controllers.properties.models import Property
 from ppgc_backend.app.controllers.inspection.models import Inspection
-from ppgc_backend.app.controllers.investments.models import Investment, InvestmentTransaction
+from ppgc_backend.app.controllers.investments.models import Investment
+from ppgc_backend.app.controllers.transactions.models import Transaction
 
 # cascade="all, delete-orphan"
 # this specifies the operations that should "cascade" 
@@ -114,5 +115,5 @@ models = [
     Property,
     Investment, 
     Inspection,
-    InvestmentTransaction,
+    Transaction,
 ]

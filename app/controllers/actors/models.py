@@ -1,3 +1,4 @@
+import uuid
 from sqlalchemy import (
     Column, 
     Integer, 
@@ -13,6 +14,7 @@ from sqlalchemy import (
     CheckConstraint,
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import UUID
 
 from .enums import (
     UserRoleChoice,
@@ -25,6 +27,13 @@ class User(Base):
     __tablename__ = 'users'
 
     id = Column(Integer, primary_key=True, index=True)
+    uid = Column(
+        UUID(as_uuid=True),
+        unique=True,
+        nullable=False,
+        default=uuid.uuid4,  # auto-generates new UUID on insert
+        index=True
+    )
     email = Column(String, unique=True, index=True)
     username = Column(String, unique=True, index=True)
     password_hash = Column(String, nullable=True)
@@ -58,9 +67,13 @@ class User(Base):
     address = Column(String, nullable=True)
     email_notification = Column(Boolean, default=True)
     push_notification = Column(Boolean, default=True)
+    pass_code = Column(String)
 
     __table_args__ = (
         CheckConstraint("char_length(nin) = 11", name="check_nin_length_11"),
+    )
+    __table_args__ = (
+        CheckConstraint("char_length(pass_code) = 4", name="check_pass_code_length_4"),
     )
 
 

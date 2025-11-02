@@ -2,15 +2,14 @@ from sqlalchemy import (
     Column, 
     Integer, 
     String,
-    ForeignKey, 
     func,
-    DateTime,
-    event,
     Float,
     String,
+    event,
+    DateTime,
+    ForeignKey, 
 )
 from sqlalchemy.orm import relationship
-
 
 from ppgc_backend.config.postgres_connection_manager import Base
 
@@ -42,31 +41,6 @@ class Investment(Base):
         backref = "investments",
         lazy = 'selectin',
         uselist=False
-    )
-
-
-class InvestmentTransaction(Base):
-    __tablename__ = "investment_transactions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    amount = Column(Float, nullable=False)
-    transaction_type = Column(String, nullable=False)  # deposit, withdraw
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    # Relationship
-    investment_id = Column(
-        Integer, 
-        ForeignKey(
-            "investments.id",
-            name="fk_investments_transactions_investments",
-            ondelete="CASCADE"
-        ), 
-        nullable=False
-    )
-    investment = relationship(
-        "Investment", 
-        backref="transactions",
-        lazy = 'selectin',
     )
 
 @event.listens_for(Investment, 'before_insert')
