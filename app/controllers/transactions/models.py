@@ -1,6 +1,8 @@
+import sqlalchemy as sa
 from sqlalchemy import (
     func,
     Float,
+    String,
     Column, 
     Integer, 
     DateTime,
@@ -8,6 +10,7 @@ from sqlalchemy import (
     Enum as SQLAlchemyEnum,
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property
 
 from .enums import TRXType
 from ppgc_backend.config.postgres_connection_manager import Base
@@ -18,22 +21,12 @@ class Transaction(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     amount = Column(Float, nullable=False)
-    transaction_type = Column(SQLAlchemyEnum(TRXType, name="transaction_type"), nullable=False)  
+    name = Column(String, nullable=False)
+    trx_type = Column(SQLAlchemyEnum(TRXType, name="transaction_type"), nullable=False)  
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    investment_id = Column(
-        Integer, 
-        ForeignKey(
-            "investments.id",
-            name="fk_transactions_investments",
-            ondelete="CASCADE"
-        ), 
-        nullable=False
-    )
-    investment = relationship(
-        "Investment", 
-        backref="transactions",
-        lazy = 'selectin',
+    trx_id = Column(String)
+    __table_args__ = (
+        sa.UniqueConstraint("trx_id", name="uq_transactions_trx_id"),
     )
 
     user_id = Column(
@@ -50,3 +43,8 @@ class Transaction(Base):
         backref="transactions",
         lazy = 'selectin',
     )
+
+
+    @hybrid_property
+    def goal_name(self):
+        return self.name

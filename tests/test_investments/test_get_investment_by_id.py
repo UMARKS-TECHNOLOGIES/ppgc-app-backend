@@ -1,0 +1,66 @@
+import pytest
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+
+from ppgc_backend.app.controllers.auth.services import (
+    fetch_access_token,
+)
+from ppgc_backend.tests.test_transactions import trx_data
+from ppgc_backend.app.controllers.investments.models import Investment
+from ppgc_backend.app.controllers.investments.tools import compute_roi
+from ppgc_backend.tests.auth.test_user_creation import create_test_user
+
+@pytest.mark.asyncio
+async def test_create_roi(client_fixture):
+    async for fixture_obj in client_fixture:
+        test_db: AsyncSession = fixture_obj.get("db")
+        httpx_client: AsyncClient = fixture_obj.get("http_client")
+        break
+
+    created_user = await create_test_user(test_db)
+    token_obj = fetch_access_token(user=created_user)
+    token = token_obj['access_token']
+    headers = {"Authorization": f"Bearer {token}"}
+
+    roi_data = {
+        "name": "Investment",
+        "amount": 10000.0,
+        "interest_rate": 5.0,
+        "duration": 8,
+        "trx": trx_data,
+    }
+
+
+    #**# create an investment
+    response = await httpx_client.post(
+        "/investments/create/", 
+        json=roi_data, 
+        headers=headers
+    )
+    assert response.status_code == 200
+    json_response = response.json()
+    assert 'id' in json_response
+    id = json_response['id']
+    
+
+    #**# get the investment
+    response = await httpx_client.get(
+        f"/investments/{id}/", 
+        headers=headers
+    )
+    assert response.status_code == 200
+    json_response = response.json()
+    
+    # make assertions
+    investment = await test_db.get(Investment,id)
+    roi = compute_roi(investment)
+    
+    assert 'created_at' in json_response
+    assert 'roi' in json_response
+    assert roi == json_response['roi']
+    assert 'maturity_time' in json_response
+
+    assert 'id' in json_response['trx']
+    assert 'created_at' in json_response['trx']
+    assert json_response['trx']['trx_type'] == 'deposit'

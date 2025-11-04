@@ -15,9 +15,11 @@ from ppgc_backend.app.controllers.logs import routes as logs_routes
 from ppgc_backend.app.controllers.hotels import routes as hotel_routes
 from ppgc_backend.app.controllers.auth.services import initialize_admin
 from ppgc_backend.app.controllers.bookings import routes as bookings_routes
+from ppgc_backend.app.controllers.settings import routes as settings_routes
 from ppgc_backend.app.controllers.inspection import routes as inspection_routes
 from ppgc_backend.app.controllers.properties import routes as properties_routes
-from ppgc_backend.app.controllers.settings import routes as settings_routes
+from ppgc_backend.app.controllers.investments import routes as investments_routes
+from ppgc_backend.app.controllers.transactions import routes as transaction_routes
 from ppgc_backend.app.database import (
     get_db,
 )
@@ -97,6 +99,8 @@ app.include_router(bookings_routes.router)
 app.include_router(settings_routes.router)
 app.include_router(inspection_routes.router)
 app.include_router(properties_routes.router)
+app.include_router(transaction_routes.router)
+app.include_router(investments_routes.router)
 # app.include_router(search.router)
 # app.include_router(roi.router)
 if DEBUG:
