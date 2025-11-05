@@ -20,6 +20,7 @@ from ppgc_backend.app.controllers.inspection import routes as inspection_routes
 from ppgc_backend.app.controllers.properties import routes as properties_routes
 from ppgc_backend.app.controllers.investments import routes as investments_routes
 from ppgc_backend.app.controllers.transactions import routes as transaction_routes
+from ppgc_backend.app.controllers.bank_accounts import routes as bank_accounts_routes
 from ppgc_backend.app.database import (
     get_db,
 )
@@ -101,7 +102,7 @@ app.include_router(inspection_routes.router)
 app.include_router(properties_routes.router)
 app.include_router(transaction_routes.router)
 app.include_router(investments_routes.router)
+app.include_router(bank_accounts_routes.router)
 # app.include_router(search.router)
-# app.include_router(roi.router)
 if DEBUG:
     app.include_router(home_router)

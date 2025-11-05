@@ -2,22 +2,19 @@ from sqlalchemy import inspect
 from typing import Type, Dict, Any
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from ppgc_backend.app.models import (
-    Tag, 
-    User,
-    Asset, 
-    Agent,
-    UserSetting,
-    CloudImageDetail,
-    AssetFeature, 
-    AssetCloudImage,
-)
+
+from ppgc_backend.app.initiator import logger
+from ppgc_backend.app.database import get_db
+from ppgc_backend.config.settings import DEBUG
+from fastapi import HTTPException, status, Path, Depends
+from ppgc_backend.app.controllers.actors.models import User
+from ppgc_backend.app.controllers.auth.services import decode_user_from_token
+
 
 
 def return_model_from_string(str_value: str):
     """
     Returns the appropriate model class based on the string value.
-    """
     if str_value == 'Tag':
         return Tag
     if str_value == 'User':
@@ -35,6 +32,8 @@ def return_model_from_string(str_value: str):
     elif str_value == 'CloudImageDetail':
         return CloudImageDetail
 
+    """
+    pass
 
 async def get_existing_instance_from_unique_fields(
     db: AsyncSession, 
@@ -154,3 +153,29 @@ async def create_or_update_object(
     
     # Return the instance
     return instance
+
+
+def require_owner_dep(Model):
+    async def wrapper(
+        id: int = Path(...),
+        db: AsyncSession = Depends(get_db),
+        requester: User = Depends(decode_user_from_token),
+    ):
+        instance = await db.get(Model, id)
+        if not instance:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"{Model.__tablename__} instance does not exist."
+            )
+
+        if instance.user_id != requester.id:
+            detail = "You do not have permission to perform this action."
+            if DEBUG:
+                logger.error(detail)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=detail
+            )
+
+        return instance  # optionally return the instance itself
+    return wrapper

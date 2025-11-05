@@ -130,10 +130,6 @@ class Room(Base):
         cascade="all, delete-orphan",
     )
  
-    __table_args__ = (
-        sa.UniqueConstraint("room_number", name="uq_rooms_room_number"),
-    )
- 
     @hybrid_property
     def available(self):
         """True if not currently booked or under maintenance."""

@@ -3,7 +3,6 @@ from sqlalchemy import (
     Column, 
     Integer, 
     String,
-    ForeignKey, 
     Boolean, 
     JSON, 
     Enum as SQLAlchemyEnum, 
@@ -13,7 +12,6 @@ from sqlalchemy import (
     Date,
     CheckConstraint,
 )
-from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 
 from .enums import (
@@ -75,33 +73,6 @@ class User(Base):
     __table_args__ = (
         CheckConstraint("char_length(pass_code) = 4", name="check_pass_code_length_4"),
     )
-
-
-    class BankAccount(Base):
-        __tablename__ = "bank_accounts"
-
-        id = Column(Integer, primary_key=True, index=True)
-        account_number = Column(String(20), nullable=False, unique=True)
-        account_name = Column(String(100), nullable=False)
-        bank_name = Column(String(100), nullable=False)
-        bank_code = Column(String(20), nullable=True)  # Optional: useful for integrations
-        currency = Column(String(10), default="NGN")  # e.g. NGN, USD
-
-        user_id = Column(
-            Integer, 
-            ForeignKey(
-                "users.id", 
-                name = "fk_bank_accounts_users",
-                ondelete="CASCADE"
-            ), 
-            nullable=True
-        )
-        user = relationship(
-            "User", 
-            lazy = "selectin",
-            backref="bank_accounts",
-            uselist=False
-        )
 
 
 @event.listens_for(User, 'before_insert')

@@ -54,7 +54,48 @@ async def test_create_room(client_fixture):
     )
     assert response.status_code == 403
 
+    #-------------------------
     # Create room
+    #-------------------------
+    response = await httpx_client.post(
+        f"/hotel/{hotel_id}/create-room/",
+        json=room_data,
+        headers=headers,
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["room_type"] == room_data["room_type"]
+    assert data["price_per_night"] == room_data["price_per_night"]
+    assert data["status"] == "available"
+
+
+    #-------------------------
+    # Try creating another with same data
+    #-------------------------
+    response = await httpx_client.post(
+        f"/hotel/{hotel_id}/create-room/",
+        json=room_data,
+        headers=headers,
+    )
+    assert response.status_code == 409
+
+
+
+    #-------------------------
+    # Create another hotel
+    #-------------------------
+    response = await httpx_client.post(
+        "/hotel/",
+        json=hotel_data,
+        headers=headers,
+    )
+    assert response.status_code == 201
+    created_hotel = response.json()
+    hotel_id = created_hotel["id"]
+
+    #----------------------------------------
+    # Create another room with same room data
+    #----------------------------------------
     response = await httpx_client.post(
         f"/hotel/{hotel_id}/create-room/",
         json=room_data,

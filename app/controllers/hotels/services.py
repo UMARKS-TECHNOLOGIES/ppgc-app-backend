@@ -35,7 +35,7 @@ async def require_manager(
     hotel = query.scalars().first()
 
     if not hotel:
-        detail = "You do not have permission to perform this action"
+        detail = "Hotel non-existent or You do not have permission to perform this action"
         if DEBUG:
             logger.error(detail)
         raise HTTPException(
@@ -112,6 +112,19 @@ async def paginated_hotel(
 
 async def create_room(hotel_id: int, db: AsyncSession, room_data: dict):
     """Creates a new room in a hotel."""
+    room = (await db.execute(
+        select(Room)
+        .where(
+            Room.hotel_id == hotel_id,
+            Room.room_number == room_data['room_number']
+        )
+    )).scalars().first()
+    if room:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Duplicate room number disallowed."
+        )
+    
     try:
         room = Room(**room_data, hotel_id=hotel_id)
         db.add(room)
