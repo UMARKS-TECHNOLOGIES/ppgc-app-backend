@@ -1,22 +1,9 @@
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, model_validator, Field
+from pydantic import BaseModel, model_validator, Field
 
 
 from ppgc_backend.app.controllers.actors.enums import UserRoleChoice
-
-class RegistrationSchema(BaseModel):
-    fullname: str
-    email: str
-
-
-class RequestEmailCodeSchema(RegistrationSchema):
-    pass
-
-
-class RequestEmailResponseSchema(BaseModel):
-    detail: str = Field(..., description = "Success message on sending the code.")
-    expiry: str = Field(..., description="Time of expiry in ISO format.")
-
+from ppgc_backend.app.controllers.actors.schemas import UserResponseSchema # for a purpose
 
 class PinOrPasswordSchema(BaseModel):
     password: Optional[str] = None
@@ -34,10 +21,37 @@ class PinOrPasswordSchema(BaseModel):
         if not check_valid:
             raise ValueError("Either of 'pin' or 'password' must be included in the payload. Both can't be empty or non-empty.")
         return values
-    
 
-class VerifyEmailAndSignUserUpSchema(RegistrationSchema, PinOrPasswordSchema):
+
+class UserRegistrationSchema(PinOrPasswordSchema):
+    email: str
+    first_name: str
+    last_name: Optional[str] = None
+    other_names: Optional[str] = None
+    user_role: UserRoleChoice = UserRoleChoice.user
+
+
+class StaffRegistrationSchema(UserRegistrationSchema):
+    user_role: UserRoleChoice = UserRoleChoice.staff
+
+
+class SignupCodeVerificationSchema(UserRegistrationSchema):
+    verification_code: str
+
+
+class RequestEmailCodeSchema(BaseModel):
+    email: str
+    first_name: str = None
+
+
+class RequestEmailResponseSchema(BaseModel):
+    detail: str = Field(..., description = "Success message on sending the code.")
+    expiry: str = Field(..., description="Time of expiry in ISO format.")
+
+
+class VerifyEmailAndSignUserUpSchema(UserRegistrationSchema, PinOrPasswordSchema):
     code: str
+    
 
 
 class GenericSuccessResponseSchema(BaseModel):
@@ -48,81 +62,41 @@ class SigninSchema(PinOrPasswordSchema):
     email: str
 
 
-class UserRegistrationSchema(PinOrPasswordSchema):
-    email: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-
-
-class StaffRegistrationSchema(UserRegistrationSchema):
-    user_role: str = 'staff'
-
-
 class Token(BaseModel):
     access_token: str
     token_type: str
 
 
-class SigninResponse(Token):
+class SigninResponse(UserResponseSchema):
     pass
 
 class TokenData(BaseModel):
     email: str | None = None
 
-class UserResponseSchema(BaseModel):
-    id: int
-    email: str
-    email_verified: bool
-    user_role: UserRoleChoice
-
-    model_config = ConfigDict(from_attributes=True)
 
 class PasswordResetSchema(PinOrPasswordSchema):
     email: str
     code: str
 
+
 class SendPasswordResetMail(BaseModel):
     detail: str
     expiry: str
 
+
 class Email(BaseModel):
     email: str
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-class SigninResponse(Token):
-    pass
-
-
-class UserSigninSchema(BaseModel):
-    username: Optional[str] = None
-    email: Optional[str] = None
-    password: str
 
 class ProbeUserExistenceSchema(BaseModel):
     username: str
     email: str
 
+
 class SendEmailCodeSchema(ProbeUserExistenceSchema):
     pass
 
-class RequestEmailCodeSchema(BaseModel):
-    email: str
-    username: str
-    password: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    #last_name: str
-    # Add other fields as needed
 
-
-class SignupCodeVerificationSchema():
-    verification_code: str
-    fullname: str
-    client_type: str
 
 
 class PasscodeSchema(BaseModel):

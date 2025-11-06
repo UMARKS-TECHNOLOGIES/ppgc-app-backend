@@ -34,6 +34,9 @@ async def test_route_signin(client_fixture):
         json=json_data  # Use json instead of data for a JSON body
     )
     assert response.status_code == 200
-    json_response = response.json()
-    assert json_response['token_type'] == "bearer"
-    assert "access_token" in json_response
+    json_response: dict = response.json()
+    assert json_response.get("access_token")
+    assert "id" in json_response
+    assert json_response['email'] == user_data.email
+    assert json_response['user_role'] == 'user'
+    assert not json_response['email_verified']

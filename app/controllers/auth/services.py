@@ -297,7 +297,7 @@ async def email_code_cleanup_loop(
 # user existence
 async def probe_email_uniqueness_and_request_verification_code(session: AsyncSession, data: dict):
     email_address = data['email']
-    fullname = data['fullname']
+    first_name = data['first_name']
     
     # query email uniqueness from the user's database
     email_query = await session.execute(
@@ -327,7 +327,7 @@ async def probe_email_uniqueness_and_request_verification_code(session: AsyncSes
             }
         )
 
-    code = await request_verification_code(email_address, fullname)
+    code = await request_verification_code(email_address, first_name)
 
     try:
         # persist code and expiry
@@ -443,7 +443,7 @@ async def confirm_email_verification_code_and_sign_user_up(
             detail="Verification code incorrect or expired."
         )
 
-    collection = {'email_verified':True}
+    collection = {}
 
     # Hash the user's password or pin before saving it to the database
     if 'pin' in data:
@@ -451,19 +451,13 @@ async def confirm_email_verification_code_and_sign_user_up(
     elif 'password' in data:
         collection['password_hash'] = get_password_hash(data['password'])
 
-    # extracting names from the fullname
-    name_list = data['fullname'].split()
-    
-    # adding the first_name
-    first_name = name_list[0]
-    collection['first_name'] = first_name
     # adding last_name
-    if len(name_list) > 1:
-        last_name = name_list[-1]
+    last_name = data.get('last_name')
+    if last_name:
         collection['last_name'] = last_name
-    # Adding other_names (middle names or any names between the first and last)
-    if len(name_list) > 2:
-        other_names = " ".join(name_list[1:-1])
+    # Adding other_names
+    other_names = data.get('other_names')
+    if other_names:
         collection['other_names'] = other_names
     
 
@@ -471,7 +465,10 @@ async def confirm_email_verification_code_and_sign_user_up(
     try:
         # Add the new user to the session and commit the transaction
         session.add(User(
+            first_name = data['first_name'],
             email = data['email'],
+            email_verified=True,
+            user_role=data['user_role'],
             **collection
         ))
 
@@ -503,15 +500,15 @@ async def signin(db:AsyncSession, user_data: dict):
     )
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+        
     try:
-        return {
-            **fetch_access_token(user),
-        }
+        token_data = fetch_access_token(user)
+        user.access_token = token_data['access_token']
+        return user
     except Exception as e:
         f_message = 'An error occured while signing user in!'
         d_err_message = f'An error occured while signing user in! Reason:{e}'
