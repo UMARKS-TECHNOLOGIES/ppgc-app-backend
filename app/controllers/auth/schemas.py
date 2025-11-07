@@ -41,7 +41,7 @@ class SignupCodeVerificationSchema(UserRegistrationSchema):
 
 class RequestEmailCodeSchema(BaseModel):
     email: str
-    first_name: str = None
+    first_name: str
 
 
 class RequestEmailResponseSchema(BaseModel):
@@ -95,8 +95,6 @@ class ProbeUserExistenceSchema(BaseModel):
 
 class SendEmailCodeSchema(ProbeUserExistenceSchema):
     pass
-
-
 
 
 class PasscodeSchema(BaseModel):
