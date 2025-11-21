@@ -46,9 +46,10 @@ async def test_patch_booking(client_fixture):
     created_room = response.json()
     room_id = created_room["id"]
 
-    # Create booking
+    # Create booking (include hotel_id)
     booking_data = {
         "room_id": room_id,
+        "hotel_id": hotel_id,
         **booking_data_template,
     }
     response = await httpx_client.post(

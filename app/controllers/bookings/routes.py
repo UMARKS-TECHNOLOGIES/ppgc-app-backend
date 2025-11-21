@@ -15,7 +15,7 @@ router = APIRouter(prefix="/bookings", tags=["bookings"])
 
 
 @router.post("/", response_model=BookingResponse, status_code=status.HTTP_201_CREATED)
-async def book_hotel(
+async def book_room(
     booking_data: BookingCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(decode_user_from_token)

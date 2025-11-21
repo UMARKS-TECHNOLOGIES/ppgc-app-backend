@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey, 
     event
 )
+from sqlalchemy.future import select
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
@@ -92,14 +93,14 @@ class Room(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     room_type = Column(SQLAlchemyEnum(RoomType), nullable=False, default="single")
-    room_number = Column(String(50), nullable=True)  # e.g. "A101"
+    room_number = Column(String(50), nullable=False)  # e.g. "A101"
     price_per_night = Column(Float, nullable=False)
     max_occupancy = Column(Integer, nullable=False, default=2)
     bed_count = Column(Integer, default=1)
     description = Column(String(500), nullable=True)
     amenities = Column(ARRAY(String), default=list)  # e.g. ["WiFi", "AC", "TV"]
     status = Column(SQLAlchemyEnum(RoomStatus), nullable=False, default=RoomStatus.available)
-    cover_image = Column(JSONB, default=dict) # {secure_url: str, public_id: str}
+    cover_image = Column(JSONB, default=dict, nullable=False) # {secure_url: str, public_id: str}
     other_images = Column(JSONB) #[{secure_url: str, public_id: str},]
 
     created_at = Column(DateTime(timezone=True), default=func.now())
@@ -134,6 +135,24 @@ class Room(Base):
     def available(self):
         """True if not currently booked or under maintenance."""
         return self.status == RoomStatus.available and self.booking is None
+
+@event.listens_for(Room, "before_insert")
+def prevent_multiple_admins(mapper, connection, target):
+    hotel_id = target.hotel_id
+    room_number = target.room_number
+    if not room_number or not hotel_id:
+        raise ValueError("A room must have a number and hotel id.")
+    
+    # Ensure no existing admin
+    existing_room = connection.execute(
+        select(Room)
+        .where(
+            Room.hotel_id == hotel_id,
+            Room.room_number == room_number,
+        )
+    ).scalar_one_or_none()
+    if existing_room:
+        raise ValueError(f"An room with room number {room_number}")
 
 
 @event.listens_for(Hotel, 'before_insert')

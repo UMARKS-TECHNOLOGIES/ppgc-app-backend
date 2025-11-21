@@ -90,6 +90,7 @@ class RoomPatch(RoomBase):
 
 class RoomResponse(RoomBase):
     id: int
+    hotel_id: int
     available: bool
     created_at: datetime
     status: RoomStatus

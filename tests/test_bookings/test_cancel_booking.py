@@ -51,9 +51,10 @@ async def test_cancel_booking(client_fixture):
     test_db.add(created_user)
     await test_db.commit()
 
-    # Create booking
+    # Create booking (include hotel_id)
     booking_data = {
         "room_id": room_id,
+        "hotel_id": hotel_id,
         **booking_data_template,
     }
     response = await httpx_client.post(

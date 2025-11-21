@@ -93,7 +93,7 @@ def upgrade() -> None:
     sa.Column('check_in', sa.DateTime(timezone=True), nullable=True),
     sa.Column('check_out', sa.DateTime(timezone=True), nullable=False),
     sa.Column('total_price', sa.Float(), nullable=False),
-    # sa.Column('status', sa.Enum('pending', 'confirmed', 'canceled', 'completed', name='bookingstatus'), nullable=False),
+    sa.Column('status', sa.Enum('pending', 'confirmed', 'canceled', 'completed', name='bookingstatus'), nullable=False),
     sa.Column('guests', sa.Integer(), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('booker_id', sa.Integer(), nullable=False),
@@ -133,6 +133,17 @@ def downgrade() -> None:
     op.add_column('areas', sa.Column('total_ratings', sa.INTEGER(), autoincrement=False, nullable=True))
     op.add_column('areas', sa.Column('total_stars', sa.INTEGER(), autoincrement=False, nullable=True))
     op.drop_index(op.f('ix_bookings_id'), table_name='bookings')
+    op.alter_column(
+        'bookings',
+        'status',
+        type_=sa.String(),
+        existing_type=sa.Enum(
+            'pending', 'confirmed', 'canceled', 'completed',
+            name='bookingstatus'
+        ),
+        postgresql_using="status::text"
+    )
+    op.execute("DROP TYPE IF EXISTS bookingstatus;")
     op.drop_table('bookings')
     op.drop_index(op.f('ix_rooms_id'), table_name='rooms')
     op.drop_table('rooms')
