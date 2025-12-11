@@ -61,7 +61,7 @@ async def confirm_email_verification_code_and_signup(
     session: AsyncSession = Depends(get_db),
 ):
     return await confirm_email_verification_code_and_sign_user_up(
-        data = requester_data.model_dump(exclude_none=True),
+        data = requester_data,
         session = session
     )
 

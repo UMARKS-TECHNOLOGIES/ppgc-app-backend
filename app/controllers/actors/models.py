@@ -72,6 +72,8 @@ class User(Base):
     email_notification = Column(Boolean, default=True)
     push_notification = Column(Boolean, default=True)
     pass_code = Column(String)
+    recovery_email = Column(String, nullable=True, unique=True, index=True)
+    recovery_email_verified = Column(Boolean, default=False)
 
     # internal variable, not part of database
     _access_token = None  

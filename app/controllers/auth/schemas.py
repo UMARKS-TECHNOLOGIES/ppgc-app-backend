@@ -1,9 +1,16 @@
 from typing import Optional
 from pydantic import BaseModel, model_validator, Field
 
-
 from ppgc_backend.app.controllers.actors.enums import UserRoleChoice
 from ppgc_backend.app.controllers.actors.schemas import UserResponseSchema # for a purpose
+
+class EmailEtCodeSchema(BaseModel):
+    email: str
+    code: str
+
+    model_config = {
+        "extra": "allow"   # allow arbitrary extra fields
+    }
 
 class PinOrPasswordSchema(BaseModel):
     password: Optional[str] = None
@@ -49,8 +56,8 @@ class RequestEmailResponseSchema(BaseModel):
     expiry: str = Field(..., description="Time of expiry in ISO format.")
 
 
-class VerifyEmailAndSignUserUpSchema(UserRegistrationSchema, PinOrPasswordSchema):
-    code: str
+class VerifyEmailAndSignUserUpSchema(UserRegistrationSchema, PinOrPasswordSchema, EmailEtCodeSchema):
+    pass
     
 
 

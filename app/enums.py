@@ -4,6 +4,7 @@ class EmailManagementReasonChoice(str, enum.Enum):
     email_verification = 'email-verification'
     password_change = 'password-change'
     verified = 'verified'
+    recovery_email_verification = "recovery_email_verification"
 
 class ClientTypeChoice(str, enum.Enum):
     client = 'client'

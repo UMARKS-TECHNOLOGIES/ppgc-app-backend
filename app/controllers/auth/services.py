@@ -12,6 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, APIRouter, HTTPException, status, Depends
 
+from .schemas import (
+    EmailEtCodeSchema,
+    PinOrPasswordSchema,
+    VerifyEmailAndSignUserUpSchema,
+)
 from ppgc_backend.app.initiator import logger
 from ppgc_backend.app.models import (
     User,
@@ -294,6 +299,28 @@ async def email_code_cleanup_loop(
     #    await task  # ensure cleanup before test exits
 
 
+async def request_verification_code(email_address:str, username: str) -> str:
+    
+    code = '{:04d}'.format(random.randint(0, 9999))
+    
+    try:
+        await send_email_verification_code(
+            code = code,
+            user_name = username,
+            email_address=email_address
+        )
+    except Exception as e:
+        f_message = "An error occured while requesting verification email"
+        d_message= f"{f_message} Reason: {e}" 
+        logger.error(d_message)
+        raise HTTPException(
+            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail = f_message
+        )
+    
+    return code
+
+
 # user existence
 async def probe_email_uniqueness_and_request_verification_code(session: AsyncSession, data: dict):
     email_address = data['email']
@@ -360,39 +387,6 @@ async def probe_email_uniqueness_and_request_verification_code(session: AsyncSes
         )
 
 
-async def request_verification_code(email_address:str, username: str) -> str:
-    
-    code = '{:04d}'.format(random.randint(0, 9999))
-    
-    try:
-        await send_email_verification_code(
-            code = code,
-            user_name = username,
-            email_address=email_address
-        )
-    except Exception as e:
-        f_message = "An error occured while requesting verification email"
-        d_message= f"{f_message} Reason: {e}" 
-        logger.error(d_message)
-        raise HTTPException(
-            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail = f_message
-        )
-    
-    return code
-
-
-async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).filter(User.id == user_id))
-    user = result.scalars().first()
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    await db.delete(user)
-    await db.commit()
-    return user
-
-
 async def send_email_verification_code(
     code: str,
     user_name: str,
@@ -423,57 +417,71 @@ async def send_email_verification_code(
         subject=subject,
         html_email=email_string
     )
-        
 
+
+async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).filter(User.id == user_id))
+    user = result.scalars().first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    await db.delete(user)
+    await db.commit()
+    return user
+
+
+def confirm_email_verification_code(func):
+    async def wrapper( data: EmailEtCodeSchema, session: AsyncSession, *args, **kwargs):
+        record = (await session.execute(select(TransientVerificationStore).where(
+            TransientVerificationStore.email_address == data.email,
+            TransientVerificationStore.email_code == data.code,
+        ))).scalar_one_or_none()
+        if not record:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Verification code incorrect or expired."
+            )
+        await session.delete(record)
+        await session.commit()
+        
+        #==========================
+        # run actual functionality
+        #==========================
+        return await func(data, session, *args, **kwargs)
+    return wrapper
+
+
+@confirm_email_verification_code
 async def confirm_email_verification_code_and_sign_user_up(
-    data: dict, 
+    data: VerifyEmailAndSignUserUpSchema, 
     session: AsyncSession,
 ):
-    # Fetch the record
-    stmt = select(TransientVerificationStore).where(
-        TransientVerificationStore.email_address == data['email'],
-        TransientVerificationStore.email_code == data['code'],
-    )
-    result = await session.execute(stmt)
-    record = result.scalar_one_or_none()
-
-    if not record:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Verification code incorrect or expired."
-        )
-
     collection = {}
 
     # Hash the user's password or pin before saving it to the database
-    if 'pin' in data:
-        collection['pin_hash'] = get_password_hash(data['pin'])
-    elif 'password' in data:
-        collection['password_hash'] = get_password_hash(data['password'])
+    if data.pin:
+        collection['pin_hash'] = get_password_hash(data.pin)
+    elif data.password:
+        collection['password_hash'] = get_password_hash(data.password)
 
     # adding last_name
-    last_name = data.get('last_name')
+    last_name = data.last_name
     if last_name:
         collection['last_name'] = last_name
     # Adding other_names
-    other_names = data.get('other_names')
+    other_names = data.other_names
     if other_names:
         collection['other_names'] = other_names
-    
-
 
     try:
         # Add the new user to the session and commit the transaction
         session.add(User(
-            first_name = data['first_name'],
-            email = data['email'],
+            first_name = data.first_name,
+            email = data.email,
             email_verified=True,
-            user_role=data['user_role'],
+            user_role=data.user_role,
             **collection
         ))
-
-        # delete the verification code from Redis after successful registration
-        await session.delete(record)
 
         await session.commit()
 
@@ -742,3 +750,15 @@ async def change_pin_or_password(
         # delete the transient instance
         await session.delete(transient_instance)
         await session.commit()
+
+
+def verify_pin_or_password(user: User, data: PinOrPasswordSchema):
+    password_verified =  (
+        verify_password(data.password, user.password_hash) 
+        if user.password_hash and data.password else None
+    )
+    pin_verified =  (
+        verify_password(data.pin, user.pin_hash) 
+        if user.pin_hash and data.pin else None
+    )
+    return (password_verified or pin_verified)

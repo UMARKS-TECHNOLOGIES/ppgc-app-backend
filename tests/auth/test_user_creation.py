@@ -11,15 +11,16 @@ from ppgc_backend.app.controllers.auth.services import (
     verify_password,
 )
 
+user_data = UserRegistrationSchema(
+    email="test@example.com",
+    pin="password123",
+    first_name="John",
+    last_name="Doe",
+)
 
 async def create_test_user(
     db: AsyncSession,
-    user_data = UserRegistrationSchema(
-        email="test@example.com",
-        pin="password123",
-        first_name="John",
-        last_name="Doe",
-    )
+    user_data = user_data
 ):
     return await create_user(db, user_data)
 
@@ -33,17 +34,18 @@ async def test_request_and_verify_email_verification_code(client_fixture):
         break
 
     email = "wisdomscott98@gmail.com"
-    fullname = "crank gig"
+    first_name = "crank"
+    last_name = " gig"
 
-    send_code_data = {
+    request_code_data = {
         "email": email,
-        "fullname": fullname,
+        "first_name": first_name,
     }
 
     # 1️⃣ Request verification code
     response = await httpx_client.post(
-        "/auth/request-email-verification-code",
-        json=send_code_data
+        "/auth/request-email-verification-code/",
+        json=request_code_data
     )
     assert response.status_code == 200
     json_response = response.json()
@@ -65,13 +67,12 @@ async def test_request_and_verify_email_verification_code(client_fixture):
 
     # 2️⃣ Try resending before expiry (should return 302)
     response = await httpx_client.post(
-        "/auth/request-email-verification-code",
-        json=send_code_data
+        "/auth/request-email-verification-code/",
+        json=request_code_data
     )
     assert response.status_code == 302
     json_response = response.json()
     assert json_response['detail']['status'] == "An email code has already been sent."
-    assert json_response['detail']['status']
     # retrieve code
     query = await test_db.execute(
         select(TransientVerificationStore)
@@ -85,13 +86,14 @@ async def test_request_and_verify_email_verification_code(client_fixture):
     confirm_data = {
         "email": email,
         "code": code,
-        "fullname": fullname,
+        "first_name": first_name,
+        "last_name": last_name,
         "pin": "test_pin",
 
     }
     # 3️⃣ Confirm the code; it should succeed
     response = await httpx_client.post(
-        "/auth/confirm-email-verification-code",
+        "/auth/confirm-email-verification-code/",
         json=confirm_data
     )
     assert response.status_code == 200
@@ -100,7 +102,7 @@ async def test_request_and_verify_email_verification_code(client_fixture):
 
     # 4️⃣ Confirm again — should now 404
     response = await httpx_client.post(
-        "/auth/confirm-email-verification-code",
+        "/auth/confirm-email-verification-code/",
         json=confirm_data
     )
     assert response.status_code == 404
@@ -113,6 +115,5 @@ async def test_request_and_verify_email_verification_code(client_fixture):
     ))
     user: User = query.scalars().one()
     assert verify_password(confirm_data['pin'],user.pin_hash)
-    split_names = fullname.split()
-    assert user.first_name == split_names[0]
-    assert user.last_name == split_names[1]
+    assert user.first_name == first_name
+    assert user.last_name == last_name

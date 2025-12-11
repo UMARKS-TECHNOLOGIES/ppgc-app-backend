@@ -14,6 +14,7 @@ from ppgc_backend.app.controllers.auth import routes as auth_routes
 from ppgc_backend.app.controllers.logs import routes as logs_routes
 from ppgc_backend.app.controllers.hotels import routes as hotel_routes
 from ppgc_backend.app.controllers.auth.services import initialize_admin
+from ppgc_backend.app.controllers.savings import routes as savings_routes
 from ppgc_backend.app.controllers.bookings import routes as bookings_routes
 from ppgc_backend.app.controllers.settings import routes as settings_routes
 from ppgc_backend.app.controllers.inspection import routes as inspection_routes
@@ -21,6 +22,7 @@ from ppgc_backend.app.controllers.properties import routes as properties_routes
 from ppgc_backend.app.controllers.investments import routes as investments_routes
 from ppgc_backend.app.controllers.transactions import routes as transaction_routes
 from ppgc_backend.app.controllers.bank_accounts import routes as bank_accounts_routes
+from ppgc_backend.app.controllers.two_factor_auth import routes as two_factor_auth_routes
 from ppgc_backend.app.database import (
     get_db,
 )
@@ -96,6 +98,7 @@ async def test_database(
 app.include_router(logs_routes.router)
 app.include_router(auth_routes.router)
 app.include_router(hotel_routes.router)
+app.include_router(savings_routes.router)
 app.include_router(bookings_routes.router)
 app.include_router(settings_routes.router)
 app.include_router(inspection_routes.router)
@@ -103,6 +106,7 @@ app.include_router(properties_routes.router)
 app.include_router(transaction_routes.router)
 app.include_router(investments_routes.router)
 app.include_router(bank_accounts_routes.router)
+app.include_router(two_factor_auth_routes.router)
 # app.include_router(search.router)
 if DEBUG:
     app.include_router(home_router)
