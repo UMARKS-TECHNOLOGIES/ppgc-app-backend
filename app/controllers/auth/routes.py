@@ -1,9 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import APIRouter, HTTPException, status, Depends, Body
+from fastapi import APIRouter, Request, status, Depends, Body
 
 
 from ppgc_backend.app.database import get_db
 from .schemas import (
+    Token,
     Email,
     SigninSchema,
     PasscodeSchema,
@@ -20,6 +21,7 @@ from .schemas import (
 from .services import (
     signin,
     create_user,
+    handle_refresh,
     decode_user_from_token,
     change_pin_or_password, 
     send_password_reset_mail,
@@ -47,7 +49,7 @@ async def check_email_and_request_verification_code(
     requester_data: RequestEmailCodeSchema, 
     session: AsyncSession = Depends(get_db)
 ):
-    return await probe_email_uniqueness_and_request_verification_code(session, requester_data.model_dump())
+    return await probe_email_uniqueness_and_request_verification_code(session, requester_data)
 
 
 # confirm email verification endpoint
@@ -68,8 +70,19 @@ async def confirm_email_verification_code_and_signup(
 
 # signin endpoint
 @router.post("/signin/", response_model=SigninResponse, status_code=status.HTTP_200_OK)
-async def signin_for_access_token(user_data: SigninSchema, session: AsyncSession = Depends(get_db)):
-    return await signin(session, user_data.model_dump())
+async def signin_for_access_token(user_data: SigninSchema, request: Request, session: AsyncSession = Depends(get_db)):
+    user_agent = request.headers.get("user-agent")
+    ip_address = request.client.host if request.client else None
+    return await signin(session, user_data.model_dump(), user_agent, ip_address)
+
+
+@router.post("/refresh/{id}/", response_model=Token)
+async def refresh_token(
+    id: int,
+    refresh_token: str = Body(...),
+    db: AsyncSession = Depends(get_db),
+):
+    return await handle_refresh(db, refresh_token, id)
 
 
 @router.post("/send-password-reset-mail/", response_model=SendPasswordResetMail)

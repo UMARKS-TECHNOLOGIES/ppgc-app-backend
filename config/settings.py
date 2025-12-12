@@ -10,7 +10,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Secret key for cryptographic operations
-JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your_secret_key')
+ACCESS_SECRET_KEY = os.getenv('ACCESS_SECRET_KEY', 'your_secret_key')
 
 # Allowed hosts for the application
 DEV_ENV_HOSTNAME=os.getenv('DEV_ENV_HOSTNAME')
@@ -50,3 +50,6 @@ SUPER_ADMIN_EMAIL_ADDRESS = os.getenv('SUPER_ADMIN_EMAIL_ADDRESS')
 SUPER_ADMIN_PASSWORD = os.getenv('SUPER_ADMIN_PASSWORD')
 
 REAL_TEST_EMAIL = os.getenv('REAL_TEST_EMAIL')
+
+REFRESH_SECRET_KEY = os.getenv('REFRESH_SECRET_KEY')
+REFRESH_TOKEN_EXPIRY_MINUTES=43200 # 30 days in minutes

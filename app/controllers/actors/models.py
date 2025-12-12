@@ -77,6 +77,7 @@ class User(Base):
 
     # internal variable, not part of database
     _access_token = None  
+    _refresh = None  
 
     __table_args__ = (
         CheckConstraint("char_length(nin) = 11", name="check_nin_length_11"),
@@ -88,11 +89,19 @@ class User(Base):
     def access_token(self):
         """Compute or return the cached token."""
         return self._access_token
+    @hybrid_property
+    def refresh(self):
+        """Compute or return the cached token."""
+        return self._refresh
 
     @access_token.setter
     def access_token(self, token_value):
         """Allow setting the token manually."""
         self._access_token = token_value
+    @refresh.setter
+    def refresh(self, token_value):
+        """Allow setting the token manually."""
+        self._refresh = token_value
 
 
     @validates("profile_avatar")

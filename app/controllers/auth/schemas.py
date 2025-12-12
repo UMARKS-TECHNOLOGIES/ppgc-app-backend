@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, model_validator, Field
+from pydantic import BaseModel, model_validator, Field, PrivateAttr
 
 from ppgc_backend.app.controllers.actors.enums import UserRoleChoice
 from ppgc_backend.app.controllers.actors.schemas import UserResponseSchema # for a purpose
@@ -49,6 +49,7 @@ class SignupCodeVerificationSchema(UserRegistrationSchema):
 class RequestEmailCodeSchema(BaseModel):
     email: str
     first_name: str
+    _reason: str = PrivateAttr(default='email-verification')
 
 
 class RequestEmailResponseSchema(BaseModel):

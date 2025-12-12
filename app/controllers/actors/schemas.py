@@ -5,6 +5,10 @@ from pydantic import BaseModel, ConfigDict
 from ppgc_backend.app.schemas import CloudImageCreateSchema
 from ppgc_backend.app.controllers.actors.enums import UserRoleChoice, ClientGenderChoice
 
+class Refresh(BaseModel):
+    id: int
+    token: str
+
 class UserResponseSchema(BaseModel):
     id: int
     email: str
@@ -19,5 +23,6 @@ class UserResponseSchema(BaseModel):
     gender: Optional[ClientGenderChoice] = None
     profile_avatar: Optional[CloudImageCreateSchema] = None
     access_token: Optional[str] = None
+    refresh: Optional[Refresh] = None
 
     model_config = ConfigDict(from_attributes=True)

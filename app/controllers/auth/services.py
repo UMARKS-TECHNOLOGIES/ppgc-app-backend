@@ -1,7 +1,9 @@
 import random 
 import asyncio
+from sqlalchemy import and_
 from typing import Callable
 from jose import jwt, JWTError
+from typing import Literal, Tuple
 from sqlalchemy import delete, or_
 from sqlalchemy.future import select
 from passlib.context import CryptContext
@@ -15,16 +17,16 @@ from fastapi import FastAPI, APIRouter, HTTPException, status, Depends
 from .schemas import (
     EmailEtCodeSchema,
     PinOrPasswordSchema,
+    UserRegistrationSchema,
+    RequestEmailCodeSchema,
+    ProbeUserExistenceSchema,
     VerifyEmailAndSignUserUpSchema,
 )
+from .models import RefreshSession
 from ppgc_backend.app.initiator import logger
 from ppgc_backend.app.models import (
     User,
     TransientVerificationStore
-)
-from ppgc_backend.app.controllers.auth.schemas import (
-    UserRegistrationSchema,
-    ProbeUserExistenceSchema,
 )
 from ppgc_backend.config import env_is_test
 from ppgc_backend.app.utils.store import (
@@ -40,15 +42,18 @@ from ppgc_backend.config import get_env
 from ppgc_backend.config.settings import (
     DEBUG,
     JWT_ALGORITHM,
-    JWT_SECRET_KEY, 
+    ACCESS_SECRET_KEY, 
     PASSWORD_RESET_TTL,
+    REFRESH_SECRET_KEY,
     JWT_EXPIRATION_DELTA, 
     SUPER_ADMIN_PASSWORD,
     TEST_PASSWORD_RESET_TTL,
     SUPER_ADMIN_EMAIL_ADDRESS,
+    REFRESH_TOKEN_EXPIRY_MINUTES,
 )
 from ppgc_backend.log_config.logger_config import log_error
 from ppgc_backend.app.enums import EmailManagementReasonChoice
+from ppgc_backend.app.enums import EmailManagementReasonChoice as TransientReason
 
 
 import logging
@@ -56,7 +61,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Constants for JWT
-SECRET_KEY = JWT_SECRET_KEY
+SECRET_KEY = ACCESS_SECRET_KEY
 ALGORITHM = JWT_ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES = JWT_EXPIRATION_DELTA
 
@@ -66,12 +71,20 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 app = FastAPI()
 router = APIRouter()
 
+def verify_token(plain_token, hashed_token):
+    return pwd_context.verify(plain_token, hashed_token)
+
+
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    return verify_token(plain_password, hashed_password)
+
+
+def hash_token(token):
+    return pwd_context.hash(token)
 
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    return hash_token(password)
 
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
@@ -82,12 +95,79 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     return encoded_jwt
 
 
-def fetch_access_token(user: User):
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
+def create_token(data: dict, expiry: datetime, sec_key: str) -> str:
+    to_encode = data.copy()
+    to_encode.update({"exp": expiry})
+    encoded_jwt = jwt.encode(
+        to_encode,
+        sec_key,
+        algorithm=JWT_ALGORITHM,
     )
+    return encoded_jwt
+
+
+def fetch_token(user: User, type: Literal['access, refresh']) -> Tuple[str, datetime]:
+    if type not in ["access","refresh"]:
+        raise ValueError("Token type should either be 'access' or 'refresh'")
+    type_is_access = type == 'access' 
+    expiry_minutes = (ACCESS_TOKEN_EXPIRE_MINUTES 
+        if type_is_access
+        else REFRESH_TOKEN_EXPIRY_MINUTES
+    )
+    token_expiry = datetime.now(timezone.utc) + timedelta(minutes=expiry_minutes)
+    sec_key = ACCESS_SECRET_KEY if type_is_access else REFRESH_SECRET_KEY
+    return create_token({"sub": user.email}, token_expiry, sec_key), token_expiry
+
+
+def fetch_access_token(user: User) -> dict:
+    access_token,_ = fetch_token(user,'access')
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+async def handle_refresh(db: AsyncSession, refresh_token: str, refresh_id: int):
+    payload = jwt.decode(
+        refresh_token,
+        REFRESH_SECRET_KEY,
+        algorithms=[JWT_ALGORITHM]
+    )
+    email = payload.get("sub")
+    if email is None:
+        raise HTTPException(status_code=401, detail="Invalid refresh token.")
+        
+    user = (await db.execute(select(User).where(
+        User.email == email
+    ))).scalars().one()
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid email.")
+
+    # Optionally: verify refresh token exists in DB/Redis here
+    refresh_instance = (await db.execute(
+        select(RefreshSession)
+        .where(
+            RefreshSession.user_id == user.id,
+            RefreshSession.id == refresh_id
+        )
+    )).scalars().one()
+    
+    now = datetime.now(timezone.utc)
+    if refresh_instance.expires_at <= now:
+        await db.delete(refresh_instance)
+        await db.commit()
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+
+    if not verify_token(refresh_token, refresh_instance.token_hash):
+        # Token reuse detected — revoke all sessions for this user
+        await db.execute(
+            delete(RefreshSession).where(
+                RefreshSession.user_id == user.id
+            )
+        )
+        await db.commit()
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    
+    # Generate a new access token
+    return fetch_access_token(user)
+
 
 # signin
 async def authenticate_user(db: AsyncSession, login: str, **kwargs):
@@ -243,6 +323,7 @@ async def email_code_cleanup_loop(
     session: AsyncSession, 
     email_address: str,
     email_code: str,
+    reason: TransientReason
 ):
     """
     Starts a background task to monitor and delete an email verification code
@@ -256,34 +337,26 @@ async def email_code_cleanup_loop(
     async def run_cache_task():
         while True:
             try:
-                result = await session.execute(
+                transient_instance = (await session.execute(
                     select(TransientVerificationStore)
                     .where(
-                        TransientVerificationStore.email_address == email_address,
-                        TransientVerificationStore.email_code == email_code,
+                        and_(
+                            TransientVerificationStore.email_address == email_address,
+                            TransientVerificationStore.email_code == email_code,
+                            TransientVerificationStore.reason == reason
+                        )
                     )
-                )
-                transient_instance = result.scalars().first()
+                )).scalars().first()
 
-                if not transient_instance:
+                if not transient_instance: # When instance has been deleted
                     break
 
                 now = datetime.now(timezone.utc)
                 expiry = transient_instance.email_code_expiry_time
-                if now >= expiry: # Delete the expiry time
-                    transient_instance.email_code_expiry_time = None
-                    session.add(transient_instance)
+                if expiry >= now: # Delete the expiry time
+                    await session.delete(transient_instance)
                     await session.commit()
-                    
-                    # sleep the function for transient ttl seconds
-                    await asyncio.sleep(transient_email_verification_ttl())
-
-                    # delete the instance if the email_code_expiry_time is None
-                    await session.refresh(transient_instance)
-                    if not transient_instance.email_code_expiry_time:
-                        await session.delete(transient_instance)
-                        await session.commit()
-
+                    # break the loop
                     break
 
             except Exception as e:
@@ -321,27 +394,19 @@ async def request_verification_code(email_address:str, username: str) -> str:
     return code
 
 
-# user existence
-async def probe_email_uniqueness_and_request_verification_code(session: AsyncSession, data: dict):
-    email_address = data['email']
-    first_name = data['first_name']
-    
-    # query email uniqueness from the user's database
-    email_query = await session.execute(
-        select(User)
-        .where(User.email == email_address)
-    )
-    email_exists = email_query.scalars().first()
-    if email_exists:
-        raise HTTPException(
-            status_code = status.HTTP_403_FORBIDDEN,
-            detail = f"Email {email_address} already exists"
-        )
-
+async def handle_email_code_request(
+    reason: TransientReason,
+    db: AsyncSession,
+    email: str,
+    email_name_placeholder: str,
+):
     # Check if the request already exists
-    query = await session.execute(
+    query = await db.execute(
         select(TransientVerificationStore)
-        .where(TransientVerificationStore.email_address == email_address)
+        .where(
+            TransientVerificationStore.email_address == email,
+            TransientVerificationStore.reason == reason
+        )
     )
     request_instance = query.scalars().first()
     # raise an exception if an instance and it expiry time exists.
@@ -353,38 +418,73 @@ async def probe_email_uniqueness_and_request_verification_code(session: AsyncSes
                 'expiry': request_instance.email_code_expiry_time.isoformat()
             }
         )
-
-    code = await request_verification_code(email_address, first_name)
+     
+    # Generate and send verification code
+    code = await request_verification_code(email, email_name_placeholder)
 
     try:
-        # persist code and expiry
+        # Get or create transient verification store entry
+        verification_instance = (await db.execute(
+            select(TransientVerificationStore)
+            .where(
+                TransientVerificationStore.email_address == email,
+                TransientVerificationStore.reason == reason,
+            )
+        )).scalars().first()
+
         expiry_time = datetime.now(timezone.utc) + timedelta(seconds=email_verification_code_ttl())
 
-        if not request_instance:
-            request_instance = TransientVerificationStore(
-                email_address = email_address,
+        if not verification_instance:
+            verification_instance = TransientVerificationStore(
+                email_address=email,
+                reason = reason
             )
-        request_instance.email_code = code
-        request_instance.email_code_expiry_time = expiry_time
-        session.add(request_instance)
-        await session.commit()
 
-        # run cleanup task
-        await email_code_cleanup_loop(session, email_address, code)
+        verification_instance.email_code = code
+        verification_instance.email_code_expiry_time = expiry_time
 
-        return {
-            "detail" : f"A verification code has been sent to the email {email_address}. Also check your spam folder.",
-            "expiry": expiry_time.isoformat()
-        }
+        db.add(verification_instance)
+        await db.commit()
+
+        # Start cleanup task
+        await email_code_cleanup_loop(db, email, code, reason)
+
+        return expiry_time
     except Exception as e:
-        await session.rollback()
-        f_message = "An error occured after requesting verification email."
-        d_message= f"{f_message} Reason: {e}" 
-        logger.error(d_message)
+        await db.rollback()
+        f_msg=f"Error processing email code"
+        d_msg=f"Error Caching Email code detail: {str(e)}"
+        if DEBUG:
+            logger.error(d_msg)
         raise HTTPException(
-            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail = f_message
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f_msg
         )
+
+
+# user existence
+async def probe_email_uniqueness_and_request_verification_code(session: AsyncSession, data: RequestEmailCodeSchema):
+    email = data.email
+    name = data.first_name
+    
+    # query email uniqueness from the user's database
+    email_query = await session.execute(
+        select(User)
+        .where(User.email == email)
+    )
+    email_exists = email_query.scalars().first()
+    if email_exists:
+        raise HTTPException(
+            status_code = status.HTTP_403_FORBIDDEN,
+            detail = f"Email {email} already exists"
+        )
+    
+    expiry_time = await handle_email_code_request(data._reason,session,email,name)
+    
+    return {
+        "detail" : f"A verification code has been sent to the email {email}. Also check your spam folder.",
+        "expiry": expiry_time.isoformat()
+    }
 
 
 async def send_email_verification_code(
@@ -500,7 +600,7 @@ async def confirm_email_verification_code_and_sign_user_up(
         )
     
 
-async def signin(db:AsyncSession, user_data: dict):
+async def signin(db:AsyncSession, user_data: dict, user_agent: str, ip_address: str):
     user = await authenticate_user(
         db,
         login = user_data.pop('email'), 
@@ -514,8 +614,24 @@ async def signin(db:AsyncSession, user_data: dict):
         )
         
     try:
-        token_data = fetch_access_token(user)
-        user.access_token = token_data['access_token']
+        access_token,_ = fetch_token(user,'access')
+        refresh_token, refresh_expiry = fetch_token(user,'refresh')
+        # add the session token
+        refresh_inst = RefreshSession(
+            user_id = user.id,
+            token_hash = hash_token(refresh_token),
+            expires_at = refresh_expiry,
+            user_agent = user_agent,
+            ip_address = ip_address,
+        )
+        db.add(refresh_inst)
+        await db.flush()
+        await db.commit()
+        user.access_token = access_token
+        user.refresh = {
+            "id": refresh_inst.id,
+            "token": refresh_token
+        }
         return user
     except Exception as e:
         f_message = 'An error occured while signing user in!'

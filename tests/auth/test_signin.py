@@ -3,7 +3,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ppgc_backend.app.models import User
-from .test_user_creation import create_test_user
+from .test_user_creation import create_test_user, user_data
 from ppgc_backend.app.controllers.auth.schemas import UserRegistrationSchema
 
 
@@ -14,13 +14,6 @@ async def test_route_signin(client_fixture):
         test_db: AsyncSession = fixture_obj['db']
         httpx_client: AsyncClient = fixture_obj['http_client']
         break
-    
-    user_data = UserRegistrationSchema(
-        email="test@example.com",
-        pin="password123",
-        first_name="John",
-        last_name="Doe",
-    )
 
     # Call the create_user function
     created_user = await create_test_user(test_db, user_data)
@@ -30,7 +23,7 @@ async def test_route_signin(client_fixture):
         'pin': user_data.pin
     }
     response = await httpx_client.post(
-        "/auth/signin",
+        "/auth/signin/",
         json=json_data  # Use json instead of data for a JSON body
     )
     assert response.status_code == 200
@@ -40,3 +33,19 @@ async def test_route_signin(client_fixture):
     assert json_response['email'] == user_data.email
     assert json_response['user_role'] == 'user'
     assert not json_response['email_verified']
+    refresh = json_response.get('refresh')
+    refresh_id = refresh.get('id')
+    assert refresh_id
+    refresh_token = refresh['token']
+    assert refresh_token
+
+    #====================
+    # Test refresh
+    #====================
+    response = await httpx_client.post(
+        f'/auth/refresh/{refresh_id}/',
+        json=refresh_token,
+    )
+    assert response.status_code == 200
+    json_resp = response.json()
+    assert "access_token" in json_resp

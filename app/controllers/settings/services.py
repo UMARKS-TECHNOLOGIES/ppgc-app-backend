@@ -12,8 +12,9 @@ from .schemas import RecoveryEmailVerificationSchema
 from ppgc_backend.app.controllers.actors.models import User
 from ppgc_backend.app.models import TransientVerificationStore
 from ppgc_backend.app.controllers.auth.services import (
-    request_verification_code,
     email_code_cleanup_loop,
+    request_verification_code,
+    handle_email_code_request,
 )
 from ppgc_backend.app.utils.store import (
     email_verification_code_ttl,
@@ -43,14 +44,18 @@ async def request_recovery_email_change(
     Returns:
         dict with detail message and expiry time
     """
+    #=====================================================
     # Check if recovery email already set to this address
+    #=====================================================
     if user.recovery_email == new_recovery_email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Recovery email is already set to this address"
         )
 
+    #=====================================================
     # Check if email is already used as primary or recovery by another user
+    #=====================================================
     email_check = await db.execute(
         select(User).where(User.email == new_recovery_email)
     )
@@ -59,7 +64,6 @@ async def request_recovery_email_change(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This email is already in use as a primary email"
         )
-
     recovery_check = await db.execute(
         select(User).where(User.recovery_email == new_recovery_email)
     )
@@ -68,49 +72,13 @@ async def request_recovery_email_change(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This email is already in use as a recovery email"
         )
+        
+    expiry_time = await handle_email_code_request("recovery-email-verification",db,new_recovery_email,user.first_name)
 
-    # Generate and send verification code
-    code = await request_verification_code(new_recovery_email, user.first_name)
-
-    try:
-        # Get or create transient verification store entry
-        query = await db.execute(
-            select(TransientVerificationStore)
-            .where(TransientVerificationStore.email_address == new_recovery_email)
-        )
-        verification_instance = query.scalars().first()
-
-        expiry_time = datetime.now(timezone.utc) + timedelta(seconds=email_verification_code_ttl())
-
-        if not verification_instance:
-            verification_instance = TransientVerificationStore(
-                email_address=new_recovery_email,
-            )
-
-        verification_instance.email_code = code
-        verification_instance.email_code_expiry_time = expiry_time
-        verification_instance.reason = "recovery_email_verification"
-
-        db.add(verification_instance)
-        await db.commit()
-
-        # Start cleanup task
-        await email_code_cleanup_loop(db, new_recovery_email, code)
-
-        return {
-            "detail": f"Verification code sent to {new_recovery_email}. Please check your email.",
-            "expiry": expiry_time.isoformat()
-        }
-
-    except Exception as e:
-        await db.rollback()
-        detail=f"Error sending verification email: {str(e)}"
-        if DEBUG:
-            logger.error(detail)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=detail
-        )
+    return {
+        "detail": f"Verification code sent to {new_recovery_email}. Please check your email.",
+        "expiry": expiry_time.isoformat()
+    }
 
 
 @confirm_email_verification_code
