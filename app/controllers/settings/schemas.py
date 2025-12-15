@@ -42,13 +42,28 @@ class RecoveryEmailResponseSchema(BaseModel):
         }
     }
 
-class UserSettingsResponseSchema(BaseModel):
+
+class UserSettingsBase(BaseModel):
     """Schema for user settings"""
-    email: str
-    recovery_email: Optional[str] = None
-    recovery_email_verified: bool = False
+    first_name: str
+    last_name: str
+    other_names: Optional[str] = None
+    gender: Optional[str] = None
+    nin: Optional[str] = None
+    date_of_birth: Optional[datetime] = None
+    dial_code: Optional[str] = None
+    phone_number: Optional[str] = None
+    adress: Optional[str] = None
     email_notification: bool = True
     push_notification: bool = True
-    pass_code: Optional[str] = None
 
     model_config = ConfigDict(from_attributes = True)
+
+class UserSettingsSchema(UserSettingsBase):
+    """Schema for user settings"""
+    pass
+
+class UserSettingsResponseSchema(UserSettingsBase):
+    """Schema for user settings"""
+    recovery_email_verified: bool = False
+    pass

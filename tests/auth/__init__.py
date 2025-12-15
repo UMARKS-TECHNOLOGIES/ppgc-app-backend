@@ -1,6 +1,7 @@
 from httpx import AsyncClient
+from ppgc_backend.app.controllers.auth.schemas import UserRegistrationSchema
 
-async def get_test_tokens(user_data, httpx_client: AsyncClient) -> dict:
+async def get_test_tokens(user_data: UserRegistrationSchema, httpx_client: AsyncClient) -> dict:
     # create user and refresh token
     response = await httpx_client.post(
         "/auth/signin/",
@@ -33,4 +34,7 @@ async def get_test_tokens(user_data, httpx_client: AsyncClient) -> dict:
     }
 
 async def signin_and_get_test_access_token(user_data, httpx_client):
+    return (await get_test_tokens(user_data, httpx_client))['access_token']
+
+async def signin_for_access_token(user_data, httpx_client):
     return (await get_test_tokens(user_data, httpx_client))['access_token']

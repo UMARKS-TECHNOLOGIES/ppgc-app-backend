@@ -282,7 +282,8 @@ def get_session_id(request: Request):
     session_id_str = request.cookies.get("session_id")
     session_id = int(session_id_str) if session_id_str else None
     if not session_id:
-        logger.error("** Session id not found.")
+        if DEBUG:
+            logger.error("** Session id not found.")
         credentials_exception
     return session_id
 
@@ -563,6 +564,7 @@ async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
     return user
 
 
+# decorator
 def confirm_email_verification_code(func):
     async def wrapper( data: EmailEtCodeSchema, session: AsyncSession, *args, **kwargs):
         record = (await session.execute(select(TransientVerificationStore).where(

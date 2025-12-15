@@ -11,14 +11,7 @@ from ppgc_backend.config.settings import DEBUG
 from .schemas import RecoveryEmailVerificationSchema
 from ppgc_backend.app.controllers.actors.models import User
 from ppgc_backend.app.models import TransientVerificationStore
-from ppgc_backend.app.controllers.auth.services import (
-    email_code_cleanup_loop,
-    request_verification_code,
-    handle_email_code_request,
-)
-from ppgc_backend.app.utils.store import (
-    email_verification_code_ttl,
-)
+from ppgc_backend.app.controllers.auth.services import handle_email_code_request
 from ppgc_backend.app.controllers.auth.services import confirm_email_verification_code
 
 
@@ -121,7 +114,7 @@ async def confirm_recovery_email_change(
         )
 
 
-async def get_user_settings(db: AsyncSession, user: User) -> dict:
+async def get_user_settings(db: AsyncSession, user: User) -> User:
     """
     Get current user settings.
     
@@ -130,16 +123,38 @@ async def get_user_settings(db: AsyncSession, user: User) -> dict:
         user: The authenticated user
         
     Returns:
-        dict with user settings
+        A user instance
     """
-    return {
-        "email": user.email,
-        "recovery_email": user.recovery_email,
-        "recovery_email_verified": user.recovery_email_verified if hasattr(user, 'recovery_email_verified') else False,
-        "email_notification": user.email_notification,
-        "push_notification": user.push_notification,
-        "pass_code": "****" if user.pass_code else None
-    }
+    return await db.get(User, user.id)
+
+
+async def handle_update_user_settings(data: dict, db: AsyncSession, user: User) -> User:
+    """
+    Get current user settings.
+    
+    Args:
+        db: AsyncSession for database operations
+        user: The authenticated user
+        
+    Returns:
+        A user instance
+    """
+    try:
+        for k,v in data.items():
+            setattr(user, k, v)
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return user
+    except Exception as e:
+        f_msg = "An error occured updating user records."
+        d_msg = f"{d_msg} Reason: {e}"
+        if DEBUG:
+            logger.error(d_msg)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f_msg
+        )
 
 
 async def update_notification_settings(

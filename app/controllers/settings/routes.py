@@ -3,17 +3,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ppgc_backend.app.database import get_db
 from .services import (
-    create_or_update_pass_code,
-    request_recovery_email_change,
-    confirm_recovery_email_change,
     get_user_settings,
+    create_or_update_pass_code,
+    handle_update_user_settings,
     update_notification_settings,
+    confirm_recovery_email_change,
+    request_recovery_email_change,
 )
 from .schemas import (
     RecoveryEmailRequestSchema,
     RecoveryEmailVerificationSchema,
     RecoveryEmailResponseSchema,
     UserSettingsResponseSchema,
+    UserSettingsSchema,
 )
 from ppgc_backend.app.controllers.actors.models import User
 from ppgc_backend.app.controllers.auth.schemas import PasscodeSchema
@@ -82,23 +84,13 @@ async def get_settings_endpoint(
     return await get_user_settings(db=session, user=user)
 
 
-@router.patch("/notifications", status_code=200)
-async def update_notifications_endpoint(
-    email_notification: bool = None,
-    push_notification: bool = None,
-    session: AsyncSession = Depends(get_db),
+@router.patch("/", response_model=UserSettingsResponseSchema, status_code=200)
+async def update_user_settings(
+    data: UserSettingsSchema,
+    db: AsyncSession = Depends(get_db),
     user: User = Depends(decode_user_from_token),
 ):
     """
-    Update notification preferences.
-    
-    Query Parameters:
-        - email_notification: bool (optional) - Enable/disable email notifications
-        - push_notification: bool (optional) - Enable/disable push notifications
+    Get current user settings including email, recovery email, and notification preferences.
     """
-    return await update_notification_settings(
-        db=session,
-        user=user,
-        email_notification=email_notification,
-        push_notification=push_notification
-    )
+    return await handle_update_user_settings(data.model_dump(exclude_none=True), db, user)
