@@ -1,9 +1,9 @@
 import random 
 import asyncio
 from sqlalchemy import and_
-from typing import Callable
 from jose import jwt, JWTError
 from typing import Literal, Tuple
+from typing import Callable, Dict
 from sqlalchemy import delete, or_
 from sqlalchemy.future import select
 from passlib.context import CryptContext
@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta, timezone
-from fastapi import FastAPI, APIRouter, HTTPException, status, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, Request, Response
 
 from .schemas import (
     EmailEtCodeSchema,
@@ -23,6 +23,7 @@ from .schemas import (
     VerifyEmailAndSignUserUpSchema,
 )
 from .models import RefreshSession
+from .utils import is_secure_request
 from ppgc_backend.app.initiator import logger
 from ppgc_backend.app.models import (
     User,
@@ -271,16 +272,27 @@ async def create_user(
     return user
 
 
+credentials_exception = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Could not validate credentials",
+    headers={"WWW-Authenticate": "Bearer"},
+)
+
+def get_session_id(request: Request):
+    session_id_str = request.cookies.get("session_id")
+    session_id = int(session_id_str) if session_id_str else None
+    if not session_id:
+        logger.error("** Session id not found.")
+        credentials_exception
+    return session_id
+
 # Session token validity
 async def decode_user_from_token(
+    request: Request,
+    session_id: int = Depends(get_session_id),
     token: str = Depends(oauth2_scheme), 
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
     email = None
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -289,11 +301,32 @@ async def decode_user_from_token(
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    
+
     result = await db.execute(select(User).filter(User.email == email))
     user = result.scalars().first()
     if user is None:
         raise credentials_exception
+    
+    # Retrieve session from cookies
+    now = datetime.now(timezone.utc)
+    refresh_instance = (await db.execute(
+        select(RefreshSession)
+        .where(
+            RefreshSession.id == session_id,
+            RefreshSession.user_id == user.id
+        )
+    )).scalars().first()
+    if (
+        (not refresh_instance) 
+        or (not verify_token(token, refresh_instance.access_token_hash))
+        or (now > refresh_instance.expires_at)
+    ):
+        raise credentials_exception
+    
+
+    user.refresh = { "id": session_id } # Include for session-related acts
+    request.state.db = db # inject the db session
+    request.state.user = user # inject the user
     return user
 
 
@@ -600,7 +633,7 @@ async def confirm_email_verification_code_and_sign_user_up(
         )
     
 
-async def signin(db:AsyncSession, user_data: dict, user_agent: str, ip_address: str):
+async def signin(db:AsyncSession, user_data: dict, request: Request, response: Response):
     user = await authenticate_user(
         db,
         login = user_data.pop('email'), 
@@ -612,13 +645,17 @@ async def signin(db:AsyncSession, user_data: dict, user_agent: str, ip_address: 
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    user_agent = request.headers.get("user-agent")
+    ip_address = request.client.host if request.client else None
         
     try:
-        access_token,_ = fetch_token(user,'access')
+        access_token, _ = fetch_token(user,'access')
         refresh_token, refresh_expiry = fetch_token(user,'refresh')
         # add the session token
         refresh_inst = RefreshSession(
             user_id = user.id,
+            access_token_hash = hash_token(access_token),
             token_hash = hash_token(refresh_token),
             expires_at = refresh_expiry,
             user_agent = user_agent,
@@ -632,6 +669,17 @@ async def signin(db:AsyncSession, user_data: dict, user_agent: str, ip_address: 
             "id": refresh_inst.id,
             "token": refresh_token
         }
+
+        # set cookie
+        response.set_cookie(
+            key="session_id",
+            value=str(user.refresh["id"]),
+            httponly=True,
+            secure=is_secure_request(request),          # True in production (HTTPS)
+            samesite="lax",        # or "strict"
+            max_age= REFRESH_TOKEN_EXPIRY_MINUTES * 60,  # 30 days
+            path="/",
+        )
         return user
     except Exception as e:
         f_message = 'An error occured while signing user in!'
@@ -878,3 +926,28 @@ def verify_pin_or_password(user: User, data: PinOrPasswordSchema):
         if user.pin_hash and data.pin else None
     )
     return (password_verified or pin_verified)
+
+
+async def revoke_refresh_session(    
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(decode_user_from_token),
+):
+    """Mark a refresh token as revoked for the given user."""
+    session = (await db.execute(
+        select(RefreshSession)
+        .where(
+            RefreshSession.id == user.refresh["id"], 
+            RefreshSession.user_id == user.id)
+    )).scalars().first()
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Refresh token not found")
+    await db.delete(session)
+    await db.commit()
+
+    # delete the cookie
+    response.delete_cookie(
+        key="session_id",
+        path="/",          # MUST match the original path
+        domain=None,       # Must match if you set one
+    )

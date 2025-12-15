@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import APIRouter, Request, status, Depends, Body
+from fastapi import APIRouter, Request, status, Depends, Body, Response
 
 
 from ppgc_backend.app.database import get_db
@@ -22,6 +22,7 @@ from .services import (
     signin,
     create_user,
     handle_refresh,
+    revoke_refresh_session,
     decode_user_from_token,
     change_pin_or_password, 
     send_password_reset_mail,
@@ -70,10 +71,8 @@ async def confirm_email_verification_code_and_signup(
 
 # signin endpoint
 @router.post("/signin/", response_model=SigninResponse, status_code=status.HTTP_200_OK)
-async def signin_for_access_token(user_data: SigninSchema, request: Request, session: AsyncSession = Depends(get_db)):
-    user_agent = request.headers.get("user-agent")
-    ip_address = request.client.host if request.client else None
-    return await signin(session, user_data.model_dump(), user_agent, ip_address)
+async def signin_for_access_token(user_data: SigninSchema, request: Request, response: Response, session: AsyncSession = Depends(get_db)):
+    return await signin(session, user_data.model_dump(), request, response)
 
 
 @router.post("/refresh/{id}/", response_model=Token)
@@ -110,3 +109,11 @@ async def confirm_passcode_endpoint(
     user: User = Depends(decode_user_from_token)
 ):
     return user.pass_code == data.pass_code
+
+
+@router.delete("/logout/", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    response = Depends(revoke_refresh_session),
+):
+    """Logout by revoking the refresh token for the authenticated user."""
+    return response

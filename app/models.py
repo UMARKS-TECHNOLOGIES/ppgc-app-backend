@@ -26,6 +26,7 @@ from ppgc_backend.app.controllers.properties.models import Property
 from ppgc_backend.app.controllers.inspection.models import Inspection
 from ppgc_backend.app.controllers.investments.models import Investment
 from ppgc_backend.app.controllers.transactions.models import Transaction
+from ppgc_backend.app.controllers.activity_logging.models import ActivityLog
 
 # cascade="all, delete-orphan"
 # this specifies the operations that should "cascade" 

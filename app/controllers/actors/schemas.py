@@ -7,7 +7,7 @@ from ppgc_backend.app.controllers.actors.enums import UserRoleChoice, ClientGend
 
 class Refresh(BaseModel):
     id: int
-    token: str
+    token: Optional[str] = None
 
 class UserResponseSchema(BaseModel):
     id: int

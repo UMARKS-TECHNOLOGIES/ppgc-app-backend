@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from ppgc_backend.app.models import Base
 
 
-class RefreshToken(Base):
+class RefreshSession(Base):
     """
     Model for storing refresh tokens.
     """
@@ -56,3 +56,6 @@ class SessionLog(Base):
     login_time = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     logout_time = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
+
+    user = relationship("User", back_populates="session_logs")
+    activity_logs = relationship("ActivityLog", back_populates="session")

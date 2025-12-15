@@ -7,7 +7,7 @@ from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 
-from .models import AccessToken, RefreshToken, SessionLog
+from .models import AccessToken, RefreshSession, SessionLog
 from ppgc_backend.app.controllers.actors.models import User
 
 
@@ -56,7 +56,7 @@ async def revoke_access_token(db: AsyncSession, user: User, token_id: int) -> Di
 
 async def revoke_refresh_token(db: AsyncSession, user: User, token_id: int) -> Dict:
     """Mark a refresh token as revoked for the given user."""
-    result = await db.execute(select(RefreshToken).where(RefreshToken.id == token_id, RefreshToken.user_id == user.id))
+    result = await db.execute(select(RefreshSession).where(RefreshSession.id == token_id, RefreshSession.user_id == user.id))
     token = result.scalars().first()
     if not token:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Refresh token not found")
@@ -81,7 +81,7 @@ async def revoke_all_user_tokens(db: AsyncSession, user: User) -> Dict:
         db.add(t)
 
     # Revoke refresh tokens
-    result = await db.execute(select(RefreshToken).where(RefreshToken.user_id == user.id))
+    result = await db.execute(select(RefreshSession).where(RefreshSession.user_id == user.id))
     refresh_tokens = result.scalars().all()
     for rt in refresh_tokens:
         rt.is_revoked = True

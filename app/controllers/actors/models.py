@@ -24,6 +24,7 @@ from .enums import (
 )
 from ppgc_backend.app.schemas import CloudImageCreateSchema
 from ppgc_backend.config.postgres_connection_manager import Base
+from sqlalchemy.orm import relationship
 
 
 class User(Base):
@@ -74,6 +75,10 @@ class User(Base):
     pass_code = Column(String)
     recovery_email = Column(String, nullable=True, unique=True, index=True)
     recovery_email_verified = Column(Boolean, default=False)
+
+    # Relationships
+    # session_logs = relationship("SessionLog", back_populates="user")
+    # activity_logs = relationship("ActivityLog", back_populates="user")
 
     # internal variable, not part of database
     _access_token = None  

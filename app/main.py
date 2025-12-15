@@ -7,8 +7,20 @@ from fastapi import (
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 
+from ppgc_backend.app.database import (
+    get_db,
+)
+from ppgc_backend.app.initiator import (
+    app, 
+)
+from ppgc_backend.config.settings import (
+    DEBUG,
+    CORS_ORIGINS
+)
+from fastapi import Request
 from contextlib import asynccontextmanager
 from ppgc_backend.app.controllers.auth import routes as auth_routes
 from ppgc_backend.app.controllers.logs import routes as logs_routes
@@ -23,16 +35,8 @@ from ppgc_backend.app.controllers.investments import routes as investments_route
 from ppgc_backend.app.controllers.transactions import routes as transaction_routes
 from ppgc_backend.app.controllers.bank_accounts import routes as bank_accounts_routes
 from ppgc_backend.app.controllers.two_factor_auth import routes as two_factor_auth_routes
-from ppgc_backend.app.database import (
-    get_db,
-)
-from ppgc_backend.app.initiator import (
-    app, 
-)
-from ppgc_backend.config.settings import (
-    DEBUG,
-    CORS_ORIGINS
-)
+from ppgc_backend.app.controllers.activity_logging import routes as activity_logging_routes
+from ppgc_backend.app.controllers.activity_logging.middleware import ActivityLoggerMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -45,7 +49,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-
+# proxy middleware
+app.add_middleware(
+    ProxyHeadersMiddleware,
+    trusted_hosts="*"
+)
+# Logger middleware
+app.add_middleware(ActivityLoggerMiddleware)
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -54,8 +64,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Include celery app
 
 home_router = APIRouter()
 
@@ -66,6 +74,13 @@ def read_root():
     return {
         "message": "Hello, World!",
         "environment": environment
+    }
+
+@home_router.get("/debug/scheme/")
+async def debug_scheme(request: Request):
+    return {
+        "scheme": request.url.scheme,
+        "headers": dict(request.headers),
     }
 
 
@@ -107,6 +122,7 @@ app.include_router(transaction_routes.router)
 app.include_router(investments_routes.router)
 app.include_router(bank_accounts_routes.router)
 app.include_router(two_factor_auth_routes.router)
+app.include_router(activity_logging_routes.router)
 # app.include_router(search.router)
 if DEBUG:
     app.include_router(home_router)

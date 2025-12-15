@@ -3,7 +3,8 @@ from sqlalchemy import (
     Integer,
     String,
     ForeignKey,
-    DateTime
+    DateTime,
+    Boolean,
 )
 from sqlalchemy.orm import relationship
 from ppgc_backend.config.postgres_connection_manager import Base
@@ -27,6 +28,8 @@ class RefreshSession(Base):
         uselist=False,
         lazy='selectin'
     )
+    is_revoked = Column(Boolean, default=True)
+    access_token_hash = Column(String, nullable=True)
     token_hash = Column(String)
     expires_at = Column(DateTime(timezone=True))
     user_agent = Column(String)
