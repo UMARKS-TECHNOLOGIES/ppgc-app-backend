@@ -26,6 +26,7 @@ from .services import (
     delete_hotel,
     require_manager,
     paginated_hotel,
+    get_all_available_rooms,
 )
 
 
@@ -124,3 +125,13 @@ async def delete_hotel_endpoint(
     db: AsyncSession = Depends(get_db)
 ):
     return await delete_hotel(db, hotel_id)
+
+
+@router.get("/rooms/available/all/", response_model=list[RoomResponse])
+async def get_available_rooms_endpoint(
+    page: int = 1,
+    size: int = 20,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all available rooms from all hotels with pagination."""
+    return await get_all_available_rooms(db, page, size)

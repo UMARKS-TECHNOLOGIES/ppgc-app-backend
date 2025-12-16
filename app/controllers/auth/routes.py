@@ -46,7 +46,7 @@ async def register_user(user_data: StaffRegistrationSchema, db: AsyncSession = D
     status_code=status.HTTP_200_OK, 
     response_model = RequestEmailResponseSchema
 )
-async def check_email_and_request_verification_code(
+async def check_email_and_request_verification_code_for_signup(
     requester_data: RequestEmailCodeSchema, 
     session: AsyncSession = Depends(get_db)
 ):

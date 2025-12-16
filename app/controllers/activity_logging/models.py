@@ -37,7 +37,7 @@ class ActivityLog(Base):
     request_body = Column(Text, nullable=True)  # Sanitized request payload (no sensitive data)
     response_status_code = Column(Integer, nullable=True)  # HTTP response status
     response_time_ms = Column(Integer, nullable=True)  # Time taken in milliseconds
-    
+    activity_type = Column(String, nullable=True)  # view, create, update, delete, search, etc.
     # Timestamps
     timestamp = Column(DateTime(timezone=True), default=func.now(), index=True)
     

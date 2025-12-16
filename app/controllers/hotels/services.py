@@ -64,8 +64,8 @@ async def create_hotel(db: AsyncSession, hotel_data: HotelCreate, manager_id: in
         await db.rollback()
         f_msg = 'An error occured while creating hotel.'
         d_msg = f'{f_msg} Reason: {e}'
-        #if DEBUG:
-        logger.error(d_msg)
+        if DEBUG:
+            logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -101,8 +101,8 @@ async def paginated_hotel(
         await db.rollback()
         f_msg = 'An error occurred while creating room.'
         d_msg = f'{f_msg} Reason: {e}'
-        #if DEBUG:
-        logger.error(d_msg)
+        if DEBUG:
+            logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -135,8 +135,8 @@ async def create_room(hotel_id: int, db: AsyncSession, room_data: dict):
         await db.rollback()
         f_msg = 'An error occurred while creating room.'
         d_msg = f'{f_msg} Reason: {e}'
-        #if DEBUG:
-        logger.error(d_msg)
+        if DEBUG:
+            logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -158,8 +158,8 @@ async def update_hotel(db: AsyncSession, hotel_id:int, hotel_data: HotelUpdate):
         await db.rollback()
         f_msg = 'An error occurred while updating hotel.'
         d_msg = f'{f_msg} Reason: {e}'
-        #if DEBUG:
-        logger.error(d_msg)
+        if DEBUG:
+            logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(status_code=500, detail=f_msg)
 
@@ -175,8 +175,8 @@ async def delete_hotel(db: AsyncSession, hotel_id: int):
         await db.rollback()
         f_msg = 'An error occurred while deleting hotel.'
         d_msg = f'{f_msg} Reason: {e}'
-        #if DEBUG:
-        logger.error(d_msg)
+        if DEBUG:
+            logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(status_code=500, detail=f_msg)
 
@@ -191,8 +191,8 @@ async def delete_room(db: AsyncSession, room_id: int):
         await db.rollback()
         f_msg = 'An error occurred while deleting room.'
         d_msg = f'{f_msg} Reason: {e}'
-        #if DEBUG:
-        logger.error(d_msg)
+        if DEBUG:
+            logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(status_code=500, detail=f_msg)
 
@@ -219,8 +219,8 @@ async def get_rooms(db: AsyncSession, hotel_id: int, page: int, size: int):
     except Exception as e:
         f_msg = 'An error occurred while fetching hotel rooms.'
         d_msg = f'{f_msg} Reason: {e}'
-        #if DEBUG:
-        logger.error(d_msg)
+        if DEBUG:
+            logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(status_code=500, detail=f_msg)
     
@@ -239,7 +239,29 @@ async def update_room(db: AsyncSession, room_id: int, room_data: RoomCreate):
         await db.rollback()
         f_msg = 'An error occurred while updating room.'
         d_msg = f'{f_msg} Reason: {e}'
-        #if DEBUG:
-        logger.error(d_msg)
+        if DEBUG:
+            logger.error(d_msg)
+        log_error(d_msg)
+        raise HTTPException(status_code=500, detail=f_msg)
+
+
+async def get_all_available_rooms(db: AsyncSession, page: int, size: int):
+    """Retrieve all available rooms across all hotels with pagination."""
+    try:
+        from .enums import RoomStatus
+        offset = (page - 1) * size
+        result = await db.execute(
+            select(Room)
+            .where(Room.status == RoomStatus.available)
+            .order_by(Room.id.desc())
+            .limit(size)
+            .offset(offset)
+        )
+        return result.scalars().all()
+    except Exception as e:
+        f_msg = 'An error occurred while fetching available rooms.'
+        d_msg = f'{f_msg} Reason: {e}'
+        if DEBUG:
+            logger.error(d_msg)
         log_error(d_msg)
         raise HTTPException(status_code=500, detail=f_msg)

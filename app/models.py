@@ -23,10 +23,14 @@ from ppgc_backend.config.postgres_connection_manager import Base
 from ppgc_backend.app.controllers.bookings.models import Booking
 from ppgc_backend.app.controllers.hotels.models import Hotel, Room
 from ppgc_backend.app.controllers.properties.models import Property
+from ppgc_backend.app.controllers.auth.models import RefreshSession
+from ppgc_backend.app.controllers.savings.models import DailySavings
 from ppgc_backend.app.controllers.inspection.models import Inspection
 from ppgc_backend.app.controllers.investments.models import Investment
 from ppgc_backend.app.controllers.transactions.models import Transaction
 from ppgc_backend.app.controllers.activity_logging.models import ActivityLog
+from ppgc_backend.app.controllers.two_factor_auth.models import TwoFactorAuth
+from ppgc_backend.app.controllers.two_factor_auth.models import TwoFactorAuthLog
 
 # cascade="all, delete-orphan"
 # this specifies the operations that should "cascade" 
@@ -116,5 +120,10 @@ models = [
     Property,
     Investment, 
     Inspection,
+    ActivityLog,
     Transaction,
+    DailySavings,
+    TwoFactorAuth,
+    RefreshSession,
+    TwoFactorAuthLog,
 ]

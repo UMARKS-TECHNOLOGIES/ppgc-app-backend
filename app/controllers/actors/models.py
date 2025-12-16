@@ -1,4 +1,3 @@
-import re
 import uuid
 from sqlalchemy import (
     Column, 
@@ -24,7 +23,6 @@ from .enums import (
 )
 from ppgc_backend.app.schemas import CloudImageCreateSchema
 from ppgc_backend.config.postgres_connection_manager import Base
-from sqlalchemy.orm import relationship
 
 
 class User(Base):

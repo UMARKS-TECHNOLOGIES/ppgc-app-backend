@@ -3,11 +3,12 @@ from httpx import AsyncClient
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ppgc_backend.tests.auth import signin_for_access_token
 from ppgc_backend.config.settings import REAL_TEST_EMAIL
-from ppgc_backend.app.models import TransientVerificationStore
 from ppgc_backend.app.controllers.actors.models import User
+from ppgc_backend.app.models import TransientVerificationStore
 from ppgc_backend.app.controllers.auth.services import fetch_access_token
-from ppgc_backend.tests.auth.test_user_creation import create_test_user
+from ppgc_backend.tests.auth.test_user_creation import create_test_user, user_data
 
 @pytest.mark.asyncio
 async def test_request_recovery_email_change_success(client_fixture):
@@ -17,8 +18,7 @@ async def test_request_recovery_email_change_success(client_fixture):
         break
 
     user = await create_test_user(test_db)
-    token_obj = fetch_access_token(user=user)
-    access_token = token_obj['access_token']
+    access_token = await signin_for_access_token(user_data, httpx_client)
     headers = {"Authorization": f"Bearer {access_token}"}
 
     #=============================
@@ -44,7 +44,7 @@ async def test_request_recovery_email_change_success(client_fixture):
     )
     record = stmt.scalars().first()
     assert record is not None
-    assert record.reason == "recovery_email_verification"
+    assert record.reason == "recovery-email-verification"
     code = record.email_code
     assert code is not None
     assert record.email_code_expiry_time is not None

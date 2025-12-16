@@ -4,6 +4,7 @@ from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
+from ppgc_backend.config.settings import REAL_TEST_EMAIL
 from ppgc_backend.app.models import User, TransientVerificationStore
 from ppgc_backend.app.controllers.auth.schemas import UserRegistrationSchema
 from ppgc_backend.app.controllers.auth.services import (
@@ -33,19 +34,21 @@ async def test_request_and_verify_email_verification_code(client_fixture):
         test_db: AsyncSession = fixture_obj['db']
         break
 
-    email = "wisdomscott98@gmail.com"
+    email = REAL_TEST_EMAIL
     first_name = "crank"
     last_name = " gig"
 
-    request_code_data = {
+    email_verification_code_payload = {
         "email": email,
         "first_name": first_name,
     }
 
+    #=======================================
     # 1️⃣ Request verification code
+    #=======================================
     response = await httpx_client.post(
         "/auth/request-email-verification-code/",
-        json=request_code_data
+        json=email_verification_code_payload
     )
     assert response.status_code == 200
     json_response = response.json()
@@ -65,10 +68,12 @@ async def test_request_and_verify_email_verification_code(client_fixture):
     assert code and isinstance(code, str)
 
 
+    #====================================================
     # 2️⃣ Try resending before expiry (should return 302)
+    #====================================================
     response = await httpx_client.post(
         "/auth/request-email-verification-code/",
-        json=request_code_data
+        json=email_verification_code_payload
     )
     assert response.status_code == 302
     json_response = response.json()
@@ -91,7 +96,10 @@ async def test_request_and_verify_email_verification_code(client_fixture):
         "pin": "test_pin",
 
     }
+
+    #====================================================
     # 3️⃣ Confirm the code; it should succeed
+    #====================================================
     response = await httpx_client.post(
         "/auth/confirm-email-verification-code/",
         json=confirm_data

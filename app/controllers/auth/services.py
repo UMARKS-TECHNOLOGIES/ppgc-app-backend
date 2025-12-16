@@ -54,6 +54,7 @@ from ppgc_backend.config.settings import (
 )
 from ppgc_backend.log_config.logger_config import log_error
 from ppgc_backend.app.enums import EmailManagementReasonChoice
+from ppgc_backend.config.postgres_connection_manager import get_postgres_instance
 from ppgc_backend.app.enums import EmailManagementReasonChoice as TransientReason
 
 
@@ -354,7 +355,6 @@ async def decode_user_from_token_optional(
 
 
 async def email_code_cleanup_loop(
-    session: AsyncSession, 
     email_address: str,
     email_code: str,
     reason: TransientReason
@@ -370,32 +370,34 @@ async def email_code_cleanup_loop(
     """
     async def run_cache_task():
         while True:
-            try:
-                transient_instance = (await session.execute(
-                    select(TransientVerificationStore)
-                    .where(
-                        and_(
-                            TransientVerificationStore.email_address == email_address,
-                            TransientVerificationStore.email_code == email_code,
-                            TransientVerificationStore.reason == reason
+            async with get_postgres_instance() as session:
+                session: AsyncSession
+                try:
+                    transient_instance = (await session.execute(
+                        select(TransientVerificationStore)
+                        .where(
+                            and_(
+                                TransientVerificationStore.email_address == email_address,
+                                TransientVerificationStore.email_code == email_code,
+                                TransientVerificationStore.reason == reason
+                            )
                         )
-                    )
-                )).scalars().first()
+                    )).scalars().first()
 
-                if not transient_instance: # When instance has been deleted
-                    break
+                    if not transient_instance: # When instance has been deleted
+                        break
 
-                now = datetime.now(timezone.utc)
-                expiry = transient_instance.email_code_expiry_time
-                if expiry >= now: # Delete the expiry time
-                    await session.delete(transient_instance)
-                    await session.commit()
-                    # break the loop
-                    break
+                    now = datetime.now(timezone.utc)
+                    expiry = transient_instance.email_code_expiry_time
+                    if expiry >= now: # Delete the expiry time
+                        await session.delete(transient_instance)
+                        await session.commit()
+                        # break the loop
+                        break
 
-            except Exception as e:
-                await session.rollback()
-                logger.error("❗ Error in email_code_cleanup_loop:", str(e))
+                except Exception as e:
+                    await session.rollback()
+                    logger.error("❗ Error in email_code_cleanup_loop:", str(e))
 
             # time in seconds before the next check
             await asyncio.sleep(transient_cleanup_interval())
@@ -481,7 +483,7 @@ async def handle_email_code_request(
         await db.commit()
 
         # Start cleanup task
-        await email_code_cleanup_loop(db, email, code, reason)
+        await email_code_cleanup_loop(email, code, reason)
 
         return expiry_time
     except Exception as e:
@@ -843,7 +845,7 @@ async def send_password_reset_mail(
             await session.commit()
 
             # run cleanup task
-            await email_code_cleanup_loop(session, email, code)
+            await email_code_cleanup_loop(email, code, reason)
 
             return {
                 "detail":"Password reset email sent!",

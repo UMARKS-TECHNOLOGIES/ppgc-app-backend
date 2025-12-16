@@ -25,24 +25,3 @@ class AccountDeactivation(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="account_deactivation")
-
-
-class AccountSettings(Base):
-    """
-    Model for user account settings and preferences.
-    """
-    __tablename__ = "account_settings"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("user.id"), unique=True, nullable=False)
-    email_notifications = Column(Boolean, default=True)
-    push_notifications = Column(Boolean, default=True)
-    marketing_emails = Column(Boolean, default=False)
-    two_factor_enabled = Column(Boolean, default=False)
-    privacy_level = Column(String, default="private")  # public, friends_only, private
-    show_activity = Column(Boolean, default=False)
-    allow_messages = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
-    user = relationship("User", back_populates="account_settings")
