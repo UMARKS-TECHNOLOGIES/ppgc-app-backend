@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import APIRouter, Request, status, Depends, Body, Response
+from fastapi import APIRouter, Request, status, Depends, Body, Response, Query
 
 
 from ppgc_backend.app.database import get_db
@@ -17,6 +17,8 @@ from .schemas import (
     RequestEmailResponseSchema,
     GenericSuccessResponseSchema,
     VerifyEmailAndSignUserUpSchema,
+    StaffLinkGenerateSchema,
+    StaffLinkResponseSchema,
 )
 from .services import (
     signin,
@@ -26,16 +28,20 @@ from .services import (
     decode_user_from_token,
     change_pin_or_password, 
     send_password_reset_mail,
+    require_roles,
     confirm_email_verification_code_and_sign_user_up,
     probe_email_uniqueness_and_request_verification_code,
+    generate_staff_invite_link,
+    validate_role_token,
 )
 from ppgc_backend.app.controllers.actors.models import User
+from ppgc_backend.app.controllers.actors.enums import UserRoleChoice
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 # user registeration endpoint
-@router.post("/register-staff/", status_code=status.HTTP_201_CREATED, response_model=UserResponseSchema)
+# @router.post("/register-staff/", status_code=status.HTTP_201_CREATED, response_model=UserResponseSchema)
 async def register_user(user_data: StaffRegistrationSchema, db: AsyncSession = Depends(get_db)):
     return await create_user(db, user_data)
 
@@ -62,10 +68,12 @@ async def check_email_and_request_verification_code_for_signup(
 async def confirm_email_verification_code_and_signup(
     requester_data: VerifyEmailAndSignUserUpSchema, 
     session: AsyncSession = Depends(get_db),
+    role: UserRoleChoice = Depends(validate_role_token),
 ):
     return await confirm_email_verification_code_and_sign_user_up(
         data = requester_data,
-        session = session
+        session = session,
+        role_to_assign = role
     )
 
 
@@ -117,3 +125,36 @@ async def logout(
 ):
     """Logout by revoking the refresh token for the authenticated user."""
     return response
+
+
+@router.post(
+    "/generate-staff-invite-token/",
+    status_code=status.HTTP_201_CREATED,
+    response_model=StaffLinkResponseSchema,
+    response_description="Staff invite link generated"
+)
+async def generate_staff_link(
+    data: StaffLinkGenerateSchema,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_roles("admin"))
+):
+    """
+    Generate a staff invite link (admin-only).
+    
+    - **role**: Role to assign (staff, admin, agent)
+    - **email**: Optional target email
+    - **expires_in_days**: Link expiry in days (1-90, default 7)
+    """
+    result = await generate_staff_invite_link(
+        db=db,
+        admin_user=admin,
+        email=data.email,
+        expires_in_days=data.expires_in_days
+    )
+    
+    return StaffLinkResponseSchema(
+        detail="Staff invite link generated successfully",
+        token=result["token"],
+        expires_at=result["expires_at"],
+        role=result["role"]
+    )

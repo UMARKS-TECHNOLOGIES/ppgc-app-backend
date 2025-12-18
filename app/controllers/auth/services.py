@@ -1,18 +1,19 @@
-import random 
+import random
+import secrets
 import asyncio
 from sqlalchemy import and_
 from jose import jwt, JWTError
-from typing import Literal, Tuple
-from typing import Callable, Dict
+from typing import Optional
 from sqlalchemy import delete, or_
 from sqlalchemy.future import select
 from passlib.context import CryptContext
 from sqlalchemy.exc import IntegrityError
+from typing import Callable, Literal, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta, timezone
-from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, Request, Response
+from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, Request, Response, Query
 
 from .schemas import (
     EmailEtCodeSchema,
@@ -22,7 +23,7 @@ from .schemas import (
     ProbeUserExistenceSchema,
     VerifyEmailAndSignUserUpSchema,
 )
-from .models import RefreshSession
+from .models import RefreshSession, RoleBasedToken
 from .utils import is_secure_request
 from ppgc_backend.app.initiator import logger
 from ppgc_backend.app.models import (
@@ -35,11 +36,9 @@ from ppgc_backend.app.utils.store import (
     substituted_string,
     transient_cleanup_interval,
     email_verification_code_ttl,
-    transient_email_verification_ttl,
     read_email_from_html_template_name,
 )
 from ppgc_backend.app.database import get_db
-from ppgc_backend.config import get_env
 from ppgc_backend.config.settings import (
     DEBUG,
     JWT_ALGORITHM,
@@ -54,6 +53,7 @@ from ppgc_backend.config.settings import (
 )
 from ppgc_backend.log_config.logger_config import log_error
 from ppgc_backend.app.enums import EmailManagementReasonChoice
+from ppgc_backend.app.controllers.actors.enums import UserRoleChoice
 from ppgc_backend.config.postgres_connection_manager import get_postgres_instance
 from ppgc_backend.app.enums import EmailManagementReasonChoice as TransientReason
 
@@ -580,7 +580,6 @@ def confirm_email_verification_code(func):
             )
         await session.delete(record)
         await session.commit()
-        
         #==========================
         # run actual functionality
         #==========================
@@ -592,6 +591,7 @@ def confirm_email_verification_code(func):
 async def confirm_email_verification_code_and_sign_user_up(
     data: VerifyEmailAndSignUserUpSchema, 
     session: AsyncSession,
+    role_to_assign: Optional[UserRoleChoice] = None,
 ):
     collection = {}
 
@@ -610,13 +610,16 @@ async def confirm_email_verification_code_and_sign_user_up(
     if other_names:
         collection['other_names'] = other_names
 
+    # Use role from token if available, otherwise use the role from data
+    user_role = role_to_assign if role_to_assign else data.user_role
+
     try:
         # Add the new user to the session and commit the transaction
         session.add(User(
             first_name = data.first_name,
             email = data.email,
             email_verified=True,
-            user_role=data.user_role,
+            user_role=user_role,
             **collection
         ))
 
@@ -695,63 +698,61 @@ async def signin(db:AsyncSession, user_data: dict, request: Request, response: R
         )
 
 
-async def initialize_admin():
+async def initialize_admin(session: AsyncSession):
     email = SUPER_ADMIN_EMAIL_ADDRESS
     password = SUPER_ADMIN_PASSWORD
-    async for session in get_db():
-        session: AsyncSession
-        query = await session.execute(
-            select(User)
-            .where(
-                User.email == email,
-                User.user_role == 'admin',
-                User.is_admin == True,
-            )
+    query = await session.execute(
+        select(User)
+        .where(
+            User.email == email,
+            User.user_role == 'admin',
+            User.is_admin == True,
         )
-        admin = query.scalars().first()
+    )
+    admin = query.scalars().first()
 
-        admin_recent = True
-        if admin:  
-            # verify password
-            user = await authenticate_user(session, email, password=password)
-            if not user:
-                admin_recent = False
-            else:
-                logger.info(f"\033[92m**Admin exists\033[0m")
-                return  # admin is valid, done
-        
-        password_hash = get_password_hash(password)
+    admin_recent = True
+    if admin:  
+        # verify password
+        user = await authenticate_user(session, email, password=password)
+        if not user:
+            admin_recent = False
+        else:
+            logger.info(f"\033[92m**Admin exists\033[0m")
+            return  # admin is valid, done
+    
+    password_hash = get_password_hash(password)
 
-        if not admin:
-            # delete all other admin
-            stmt = (
-                delete(User)
-                .where(
-                    or_(
-                        User.user_role == "admin",
-                        User.email == email,
-                        User.is_admin == True
-                    )
+    if not admin:
+        # delete all other admin
+        stmt = (
+            delete(User)
+            .where(
+                or_(
+                    User.user_role == "admin",
+                    User.email == email,
+                    User.is_admin == True
                 )
             )
-            await session.execute(stmt)
-            await session.commit()
-
-            # create new admin
-            admin = User(
-                email=email,
-                password_hash=password_hash,
-                is_admin=True,
-                user_role='admin'
-            )
-        elif not admin_recent:
-            admin.password_hash = password_hash
-        
-        session.add(admin)
+        )
+        await session.execute(stmt)
         await session.commit()
 
-        logger.info("\033[92m**Admin setup\033[0m")  # green log
-        return admin
+        # create new admin
+        admin = User(
+            email=email,
+            password_hash=password_hash,
+            is_admin=True,
+            user_role='admin'
+        )
+    elif not admin_recent:
+        admin.password_hash = password_hash
+    
+    session.add(admin)
+    await session.commit()
+
+    logger.info("\033[92m**Admin setup\033[0m")  # green log
+    return admin
 
 
 def get_password_reset_ttl():
@@ -955,3 +956,110 @@ async def revoke_refresh_session(
         path="/",          # MUST match the original path
         domain=None,       # Must match if you set one
     )
+
+
+async def generate_staff_invite_link(
+    db: AsyncSession,
+    admin_user: User,
+    email: Optional[str] = None,
+    expires_in_days: int = 3,
+    role: UserRoleChoice = 'staff',
+) -> dict:
+    """Generate a unique staff invite link with role-based token.
+    
+    Args:
+        role: Role to assign ('staff', 'admin', 'agent')
+        db: AsyncSession
+        admin_user: The admin user creating the link
+        email: Optional target email for the link
+        expires_in_days: Days until link expires (1-90)
+    
+    Returns:
+        dict with token, expiry, and role info
+    """
+    # Validate role
+    valid_roles = [r.value for r in UserRoleChoice]
+    if role not in valid_roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}"
+        )
+    
+    # Generate a time-based unique token (random part + timestamp)
+    timestamp = datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')
+    random_part = secrets.token_urlsafe(24)
+    plain_token = f"{random_part}.{timestamp}"
+
+    # Calculate expiry
+    expires_at = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
+    
+    try:
+        role_token = RoleBasedToken(
+            role=role,
+            token=plain_token,
+            email=email,
+            expires_at=expires_at,
+            created_by_id=admin_user.id
+        )
+        
+        db.add(role_token)
+        await db.commit()
+        
+        if DEBUG:
+            logger.info(f'**Generated staff invite token for role {role}')
+        
+        return {
+            "token": plain_token,
+            "expires_at": expires_at.isoformat(),
+            "role": role.lower()
+        }
+    
+    except Exception as e:
+        await db.rollback()
+        msg = f'**Error generating staff invite link. Reason: {e}'
+        if DEBUG:
+            logger.error(msg, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error generating invite link"
+        )
+
+
+async def validate_role_token(
+    data: VerifyEmailAndSignUserUpSchema,
+    db: AsyncSession = Depends(get_db),
+) -> UserRoleChoice | None:
+    """Validate a role token and mark it as used.
+    
+    Args:
+        token: Plain text token to validate
+        db: AsyncSession
+    
+    Returns:
+        Role name if valid and not expired, None otherwise
+    """
+    token = data.role_token
+    role = None
+    if token:
+        # Find token by hash matching (we need to check all tokens since we hash)
+        result = await db.execute(
+            select(RoleBasedToken).where(
+                RoleBasedToken.token == token,
+                RoleBasedToken.is_used == False,
+            )
+        )
+        matching_token = result.scalars().first()
+    
+        # Check expiry
+        now = datetime.now(timezone.utc)
+        if not matching_token or matching_token.expires_at <= now:
+            raise HTTPException(
+                status_code = status.HTTP_400_BAD_REQUEST,
+                detail="Role token expired or malformed"
+            )
+        
+        role = matching_token.role
+        await db.delete(matching_token)
+        await db.commit()
+    
+    return role

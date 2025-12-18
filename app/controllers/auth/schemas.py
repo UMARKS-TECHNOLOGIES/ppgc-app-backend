@@ -58,12 +58,26 @@ class RequestEmailResponseSchema(BaseModel):
 
 
 class VerifyEmailAndSignUserUpSchema(UserRegistrationSchema, PinOrPasswordSchema, EmailEtCodeSchema):
-    pass
-    
+    role_token: Optional[str] = Field(None, description="Optional role-based token for role assignment")
 
 
 class GenericSuccessResponseSchema(BaseModel):
     detail: str
+
+
+class StaffLinkGenerateBase(BaseModel):
+    role: UserRoleChoice = Field('staff', description="Role to assign (staff, admin, agent)")
+
+class StaffLinkGenerateSchema(BaseModel):
+    email: Optional[str] = Field(None, description="Optional target email")
+    expires_in_days: int = Field(default=3, ge=1, le=90, description="Token expiry in days (1-90)")
+
+
+class StaffLinkResponseSchema(BaseModel):
+    detail: str
+    token: str
+    expires_at: str
+    role: str
 
 
 class SigninSchema(PinOrPasswordSchema):
