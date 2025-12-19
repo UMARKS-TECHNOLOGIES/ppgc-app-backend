@@ -1,10 +1,9 @@
 """
 Recovery email settings management
 """
-from datetime import datetime, timedelta, timezone
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ppgc_backend.app.initiator import logger
 from ppgc_backend.config.settings import DEBUG
@@ -12,6 +11,7 @@ from .schemas import RecoveryEmailVerificationSchema
 from ppgc_backend.app.controllers.actors.models import User
 from ppgc_backend.app.models import TransientVerificationStore
 from ppgc_backend.app.controllers.auth.services import handle_email_code_request
+from ppgc_backend.app.enums import EmailManagementReasonChoice as TransientReason
 from ppgc_backend.app.controllers.auth.services import confirm_email_verification_code
 
 
@@ -74,7 +74,7 @@ async def request_recovery_email_change(
     }
 
 
-@confirm_email_verification_code
+@confirm_email_verification_code(TransientReason.recovery_email_verification)
 async def confirm_recovery_email_change(
     data: RecoveryEmailVerificationSchema,
     db: AsyncSession,

@@ -50,7 +50,12 @@ async def lifespan(app: FastAPI):
     # Shutdown logic (if needed)
     # e.g., await redis_client.close()
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+    lifespan=lifespan
+)
 
 # proxy middleware
 app.add_middleware(

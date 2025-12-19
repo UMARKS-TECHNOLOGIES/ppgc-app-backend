@@ -53,10 +53,10 @@ async def register_user(user_data: StaffRegistrationSchema, db: AsyncSession = D
     response_model = RequestEmailResponseSchema
 )
 async def check_email_and_request_verification_code_for_signup(
-    requester_data: RequestEmailCodeSchema, 
+    data: RequestEmailCodeSchema, 
     session: AsyncSession = Depends(get_db)
 ):
-    return await probe_email_uniqueness_and_request_verification_code(session, requester_data)
+    return await probe_email_uniqueness_and_request_verification_code(session, data)
 
 
 # confirm email verification endpoint
@@ -66,12 +66,12 @@ async def check_email_and_request_verification_code_for_signup(
     response_model=GenericSuccessResponseSchema
 )
 async def confirm_email_verification_code_and_signup(
-    requester_data: VerifyEmailAndSignUserUpSchema, 
+    data: VerifyEmailAndSignUserUpSchema, 
     session: AsyncSession = Depends(get_db),
-    role: UserRoleChoice = Depends(validate_role_token),
+    role: UserRoleChoice|None = Depends(validate_role_token),
 ):
     return await confirm_email_verification_code_and_sign_user_up(
-        data = requester_data,
+        data = data,
         session = session,
         role_to_assign = role
     )

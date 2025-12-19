@@ -1,6 +1,7 @@
 import random
 import secrets
 import asyncio
+from functools import wraps
 from sqlalchemy import and_
 from jose import jwt, JWTError
 from typing import Optional
@@ -389,10 +390,11 @@ async def email_code_cleanup_loop(
 
                     now = datetime.now(timezone.utc)
                     expiry = transient_instance.email_code_expiry_time
-                    if expiry >= now: # Delete the expiry time
+                    # Delete the instance when it has expired (expiry <= now)
+                    if expiry is not None and expiry <= now:
                         await session.delete(transient_instance)
                         await session.commit()
-                        # break the loop
+                        # break the loop once deleted
                         break
 
                 except Exception as e:
@@ -567,27 +569,65 @@ async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
 
 
 # decorator
-def confirm_email_verification_code(func):
-    async def wrapper( data: EmailEtCodeSchema, session: AsyncSession, *args, **kwargs):
-        record = (await session.execute(select(TransientVerificationStore).where(
-            TransientVerificationStore.email_address == data.email,
-            TransientVerificationStore.email_code == data.code,
-        ))).scalar_one_or_none()
-        if not record:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Verification code incorrect or expired."
-            )
-        await session.delete(record)
-        await session.commit()
-        #==========================
-        # run actual functionality
-        #==========================
-        return await func(data, session, *args, **kwargs)
-    return wrapper
+def confirm_email_verification_code(reason: TransientReason = None):
+    def outer_wrapper(func):
+        @wraps(func)
+        async def wrapper(
+            data: EmailEtCodeSchema,
+            session: AsyncSession,
+            *args,
+            **kwargs
+        ):
+            if DEBUG:
+                record = (await session.execute(
+                    select(TransientVerificationStore).where(
+                        TransientVerificationStore.email_address == data.email,
+                    )
+                )).scalars().first()
+                logger.info(f"**First record: {record}")
+                if record:
+                    logger.info(f"**Code: {record.email_code}")
+                    logger.info(f"**Reason: {record.reason}")
+
+            filters = [
+                TransientVerificationStore.email_address == data.email,
+                TransientVerificationStore.email_code == data.code,
+            ]
+
+            # If reason is provided, enforce it
+            if reason is not None:
+                filters.append(TransientVerificationStore.reason == reason)
+
+            record = (await session.execute(
+                select(TransientVerificationStore).where(and_(*filters))
+            )).scalars().first()
+
+            if not record:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Verification code incorrect or expired."
+                )
+
+            # Expiry check (recommended)
+            now = datetime.now(timezone.utc)
+            if record.email_code_expiry_time and record.email_code_expiry_time <= now:
+                await session.delete(record)
+                await session.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_410_GONE,
+                    detail="Verification code expired."
+                )
+
+            await session.delete(record)
+            await session.commit()
+
+            return await func(data, session, *args, **kwargs)
+
+        return wrapper
+    return outer_wrapper
 
 
-@confirm_email_verification_code
+@confirm_email_verification_code(TransientReason.email_verification)
 async def confirm_email_verification_code_and_sign_user_up(
     data: VerifyEmailAndSignUserUpSchema, 
     session: AsyncSession,
@@ -611,7 +651,7 @@ async def confirm_email_verification_code_and_sign_user_up(
         collection['other_names'] = other_names
 
     # Use role from token if available, otherwise use the role from data
-    user_role = role_to_assign if role_to_assign else data.user_role
+    user_role = role_to_assign if role_to_assign else UserRoleChoice.user
 
     try:
         # Add the new user to the session and commit the transaction
@@ -630,10 +670,10 @@ async def confirm_email_verification_code_and_sign_user_up(
         }
 
     except Exception as e:
+        await session.rollback()
         f_message = "An error occured while creating the user"
         d_message= f"{f_message} Reason: {e}" 
         logger.error(d_message)
-        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while creating the user."
@@ -1038,7 +1078,8 @@ async def validate_role_token(
     Returns:
         Role name if valid and not expired, None otherwise
     """
-    token = data.role_token
+    
+    token = getattr(data, 'role_token')
     role = None
     if token:
         # Find token by hash matching (we need to check all tokens since we hash)

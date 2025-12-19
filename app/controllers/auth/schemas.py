@@ -1,6 +1,7 @@
 from typing import Optional
 from pydantic import BaseModel, model_validator, Field, PrivateAttr
 
+from ppgc_backend.app.enums import EmailManagementReasonChoice
 from ppgc_backend.app.controllers.actors.enums import UserRoleChoice
 from ppgc_backend.app.controllers.actors.schemas import UserResponseSchema # for a purpose
 
@@ -35,11 +36,11 @@ class UserRegistrationSchema(PinOrPasswordSchema):
     first_name: str
     last_name: Optional[str] = None
     other_names: Optional[str] = None
-    user_role: UserRoleChoice = UserRoleChoice.user
+    # user_role: UserRoleChoice = UserRoleChoice.user
 
 
 class StaffRegistrationSchema(UserRegistrationSchema):
-    user_role: UserRoleChoice = UserRoleChoice.staff
+    role_token: str
 
 
 class SignupCodeVerificationSchema(UserRegistrationSchema):
@@ -49,7 +50,7 @@ class SignupCodeVerificationSchema(UserRegistrationSchema):
 class RequestEmailCodeSchema(BaseModel):
     email: str
     first_name: str
-    _reason: str = PrivateAttr(default='email-verification')
+    _reason: EmailManagementReasonChoice = PrivateAttr(default=EmailManagementReasonChoice.email_verification)
 
 
 class RequestEmailResponseSchema(BaseModel):
@@ -57,7 +58,7 @@ class RequestEmailResponseSchema(BaseModel):
     expiry: str = Field(..., description="Time of expiry in ISO format.")
 
 
-class VerifyEmailAndSignUserUpSchema(UserRegistrationSchema, PinOrPasswordSchema, EmailEtCodeSchema):
+class VerifyEmailAndSignUserUpSchema(UserRegistrationSchema, EmailEtCodeSchema):
     role_token: Optional[str] = Field(None, description="Optional role-based token for role assignment")
 
 
