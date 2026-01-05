@@ -7,14 +7,10 @@ import pytest_asyncio
 from sqlalchemy import text
 from asgiref.sync import async_to_sync
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 
 from ppgc_backend.app.main import app
 from ppgc_backend.app.database import get_db
-from ppgc_backend.config.settings import (
-    TEST_DATABASE_URL, 
-)
-from ppgc_backend.config.postgres_connection_manager import Base, get_postgres_instance
+from ppgc_backend.config.postgres_connection_manager import Base, async_engine, AsyncSessionLocal
 
 
 @pytest_asyncio.fixture
@@ -23,10 +19,12 @@ def test_env_var():
     yield
     os.environ.pop("TEST_ENV", None)
 
+
 async def drop_and_create_metadata():
+    #====================================================
     # initialize a test engine and store its reference
-    async_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
     # Create a clean database if it's a test environment
+    #====================================================
     async with async_engine.begin() as conn:
         await conn.execute(text("DROP SCHEMA public CASCADE"))
         await conn.execute(text("CREATE SCHEMA public"))
@@ -38,7 +36,7 @@ async def drop_and_create_metadata():
 @pytest_asyncio.fixture(scope="function")
 async def get_test_db__fixture(test_env_var):
     await drop_and_create_metadata()
-    async with get_postgres_instance() as session:
+    async with AsyncSessionLocal() as session:
         yield session
 
 

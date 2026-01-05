@@ -37,12 +37,12 @@ from ppgc_backend.app.controllers.bank_accounts import routes as bank_accounts_r
 from ppgc_backend.app.controllers.two_factor_auth import routes as two_factor_auth_routes
 from ppgc_backend.app.controllers.activity_logging import routes as activity_logging_routes
 from ppgc_backend.app.controllers.activity_logging.middleware import ActivityLoggerMiddleware
-from ppgc_backend.config.postgres_connection_manager import get_postgres_instance
+from ppgc_backend.config.postgres_connection_manager import AsyncSessionLocal
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup logic
-    async with get_postgres_instance() as session:
+    async with AsyncSessionLocal() as session:
         await initialize_admin(session)
     yield  
 

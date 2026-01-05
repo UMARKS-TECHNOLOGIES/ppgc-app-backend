@@ -1,11 +1,11 @@
 """
 Schemas for settings endpoints
 """
+from datetime import date
 from typing import Optional
-from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
-
 from ppgc_backend.app.controllers.auth.services import EmailEtCodeSchema
+from ppgc_backend.app.controllers.actors.schemas import UserResponseSchema
 
 
 class RecoveryEmailRequestSchema(BaseModel):
@@ -45,12 +45,12 @@ class RecoveryEmailResponseSchema(BaseModel):
 
 class UserSettingsBase(BaseModel):
     """Schema for user settings"""
-    first_name: str
-    last_name: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     other_names: Optional[str] = None
     gender: Optional[str] = None
     nin: Optional[str] = None
-    date_of_birth: Optional[datetime] = None
+    date_of_birth: Optional[date] = None
     dial_code: Optional[str] = None
     phone_number: Optional[str] = None
     adress: Optional[str] = None
@@ -63,7 +63,6 @@ class UserSettingsSchema(UserSettingsBase):
     """Schema for user settings"""
     pass
 
-class UserSettingsResponseSchema(UserSettingsBase):
+class UserSettingsResponseSchema(UserResponseSchema):
     """Schema for user settings"""
-    recovery_email_verified: bool = False
     pass

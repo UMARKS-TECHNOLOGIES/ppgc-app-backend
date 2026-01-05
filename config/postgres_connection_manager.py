@@ -13,25 +13,33 @@ from ppgc_backend.config.settings import (
 Base = declarative_base()
 
 
-def get_async_session():
-    env_is_test = get_env() == 'test'
-    database_url = TEST_DATABASE_URL if env_is_test else (DEV_DATABASE_URL if DEBUG else PROD_DATABASE_URL)
+def _get_database_url() -> str:
+    if get_env() == "test":
+        return TEST_DATABASE_URL
+    return DEV_DATABASE_URL if DEBUG else PROD_DATABASE_URL
 
-    async_engine = create_async_engine(database_url, echo=False) # create engine (it manages a connection pool internally)
 
-    SessionMaker = sessionmaker(
-        bind=async_engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-        autocommit=False,
-        autoflush=False
-    ) 
+DATABASE_URL = _get_database_url()
 
-    return SessionMaker
+async_engine = create_async_engine(
+    DATABASE_URL,
+    echo=DEBUG,
+    pool_size=5,           # 👈 IMPORTANT (PgBouncer-friendly)
+    max_overflow=10,
+    pool_timeout=30,
+    pool_pre_ping=True,    # 👈 Prevent stale connections
+)
+
+AsyncSessionLocal = sessionmaker(
+    bind=async_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
 
 @asynccontextmanager
 async def get_postgres_instance():
-    SessionLocal: sessionmaker = get_async_session()
-
-    async with SessionLocal() as session:
-        yield session
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()

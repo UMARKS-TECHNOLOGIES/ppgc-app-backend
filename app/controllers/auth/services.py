@@ -39,6 +39,7 @@ from ppgc_backend.app.utils.store import (
     email_verification_code_ttl,
     read_email_from_html_template_name,
 )
+from ppgc_backend.app.controllers.actors.schemas import UserResponseSchema
 from ppgc_backend.app.database import get_db
 from ppgc_backend.config.settings import (
     DEBUG,
@@ -485,7 +486,7 @@ async def handle_email_code_request(
         await db.commit()
 
         # Start cleanup task
-        await email_code_cleanup_loop(email, code, reason)
+        # await email_code_cleanup_loop(email, code, reason)
 
         return expiry_time
     except Exception as e:
@@ -727,6 +728,7 @@ async def signin(db:AsyncSession, user_data: dict, request: Request, response: R
             max_age= REFRESH_TOKEN_EXPIRY_MINUTES * 60,  # 30 days
             path="/",
         )
+        # logger.info(f"User:{UserResponseSchema.model_validate(user).model_dump()}")
         return user
     except Exception as e:
         f_message = 'An error occured while signing user in!'
