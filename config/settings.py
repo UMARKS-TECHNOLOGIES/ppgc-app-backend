@@ -1,10 +1,13 @@
 import os
 import socket
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables from a .env file if present
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # Base directory of the project
 BASE_DIR = Path(__file__).resolve().parent.parent

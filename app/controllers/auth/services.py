@@ -903,33 +903,34 @@ async def send_password_reset_mail(
         
 
 async def change_pin_or_password(
+    user: User,
     session: AsyncSession,
     **kwargs,
 ):
     password = kwargs.get('password',None)
     pin = kwargs.get('pin',None)
     code = kwargs.get('code')
-    email = kwargs.get('email')
+    email = user.email
 
-    query = await session.execute(
-        select(TransientVerificationStore)
-        .where(
-            TransientVerificationStore.email_address == email,
-            TransientVerificationStore.email_code == code,
-        )
-    )
-    transient_instance = query.scalars().first()
+    #query = await session.execute(
+    #    select(TransientVerificationStore)
+    #    .where(
+    #        TransientVerificationStore.email_address == email,
+    #        TransientVerificationStore.email_code == code,
+    #    )
+    #)
+    #transient_instance = query.scalars().first()
 
-    now = datetime.now(timezone.utc)
+    #now = datetime.now(timezone.utc)
 
-    if not transient_instance or transient_instance.email_code_expiry_time < now:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail='Password/Pin Request either expired or not initiated!'
-        )
+    #if not transient_instance or transient_instance.email_code_expiry_time < now:
+    #    raise HTTPException(
+    #        status_code=status.HTTP_400_BAD_REQUEST,
+    #        detail='Password/Pin Request either expired or not initiated!'
+    #    )
 
     # check that password ain't same
-    result = await authenticate_user(session, email, {'password':password,'pin':pin})
+    result = await authenticate_user(session, email, **{'password':password,'pin':pin})
     if result:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -959,8 +960,8 @@ async def change_pin_or_password(
         await session.commit()
 
         # delete the transient instance
-        await session.delete(transient_instance)
-        await session.commit()
+        # await session.delete(transient_instance)
+        # await session.commit()
 
 
 def verify_pin_or_password(user: User, data: PinOrPasswordSchema):
@@ -1070,7 +1071,7 @@ async def generate_staff_invite_link(
 async def validate_role_token(
     data: VerifyEmailAndSignUserUpSchema,
     db: AsyncSession = Depends(get_db),
-) -> UserRoleChoice | None:
+) -> UserRoleChoice:
     """Validate a role token and mark it as used.
     
     Args:
@@ -1082,27 +1083,29 @@ async def validate_role_token(
     """
     
     token = getattr(data, 'role_token')
-    role = None
-    if token:
-        # Find token by hash matching (we need to check all tokens since we hash)
-        result = await db.execute(
-            select(RoleBasedToken).where(
-                RoleBasedToken.token == token,
-                RoleBasedToken.is_used == False,
-            )
-        )
-        matching_token = result.scalars().first()
     
-        # Check expiry
-        now = datetime.now(timezone.utc)
-        if not matching_token or matching_token.expires_at <= now:
-            raise HTTPException(
-                status_code = status.HTTP_400_BAD_REQUEST,
-                detail="Role token expired or malformed"
-            )
-        
-        role = matching_token.role
-        await db.delete(matching_token)
-        await db.commit()
+    if not token:
+        return UserRoleChoice.user
+    
+    # Find token by hash matching (we need to check all tokens since we hash)
+    result = await db.execute(
+        select(RoleBasedToken).where(
+            RoleBasedToken.token == token,
+            RoleBasedToken.is_used == False,
+        )
+    )
+    matching_token = result.scalars().first()
+
+    # Check expiry
+    now = datetime.now(timezone.utc)
+    if not matching_token or matching_token.expires_at <= now:
+        raise HTTPException(
+            status_code = status.HTTP_400_BAD_REQUEST,
+            detail="Role token expired or malformed"
+        )
+    
+    role = matching_token.role
+    await db.delete(matching_token)
+    await db.commit()
     
     return role

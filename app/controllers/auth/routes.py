@@ -68,7 +68,7 @@ async def check_email_and_request_verification_code_for_signup(
 async def confirm_email_verification_code_and_signup(
     data: VerifyEmailAndSignUserUpSchema, 
     session: AsyncSession = Depends(get_db),
-    role: UserRoleChoice|None = Depends(validate_role_token),
+    role: UserRoleChoice = Depends(validate_role_token),
 ):
     return await confirm_email_verification_code_and_sign_user_up(
         data = data,
@@ -104,10 +104,10 @@ async def send_password_reset_mail_endpoint(
 async def change_password_endpoint(
     data: PasswordResetSchema = Body(...),
     session: AsyncSession = Depends(get_db),
+    user: User = Depends(decode_user_from_token),
 ):
     return await change_pin_or_password(
-        session=session,
-        **data.model_dump()
+        user, session, **data.model_dump()
     )
 
 

@@ -6,10 +6,10 @@ from ppgc_backend.app.main import app
 
 @pytest.mark.asyncio
 async def test_db_connectivity(
-    get_test_db__fixture: AsyncSession
+    get_test_db__fixture
 ):
-    async for test_db in get_test_db__fixture:
-        assert isinstance(test_db, AsyncSession)
+    test_db = get_test_db__fixture
+    assert isinstance(test_db, AsyncSession)
 
 
 @pytest.mark.asyncio

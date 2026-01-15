@@ -9,34 +9,30 @@ from asgiref.sync import async_to_sync
 from httpx import AsyncClient, ASGITransport
 
 from ppgc_backend.app.main import app
+from ppgc_backend.app.initiator import logger
 from ppgc_backend.app.database import get_db
-from ppgc_backend.config.postgres_connection_manager import Base, async_engine, AsyncSessionLocal
+from ppgc_backend.config.postgres_connection_manager import Base, runtime_async_session_maker, runtime_async_engine
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="function")
 def test_env_var():
     os.environ["TEST_ENV"] = "true"
     yield
     os.environ.pop("TEST_ENV", None)
 
 
-async def drop_and_create_metadata():
-    #====================================================
-    # initialize a test engine and store its reference
-    # Create a clean database if it's a test environment
-    #====================================================
+@pytest_asyncio.fixture(scope="function")
+async def get_test_db__fixture(test_env_var):
+    async_engine = runtime_async_engine()
     async with async_engine.begin() as conn:
         await conn.execute(text("DROP SCHEMA public CASCADE"))
         await conn.execute(text("CREATE SCHEMA public"))
-        print("***Dropped and recreated public schema")
+        logger.info("***Dropped and recreated public schema")
         await conn.run_sync(Base.metadata.create_all)
-        print("***Created a new Base metadata")
+        logger.info("***Created a new Base metadata")
 
-
-@pytest_asyncio.fixture(scope="function")
-async def get_test_db__fixture(test_env_var):
-    await drop_and_create_metadata()
-    async with AsyncSessionLocal() as session:
+    async_session_maker = runtime_async_session_maker()
+    async with async_session_maker() as session:
         yield session
 
 
@@ -44,26 +40,20 @@ async def get_test_db__fixture(test_env_var):
 async def client_fixture(
     get_test_db__fixture, 
 ):
-    async for test_db in get_test_db__fixture:
-        break
-
     # overriding the client's get_db dependency
-    app.dependency_overrides[get_db] = lambda: test_db  # Override get_db to use the test session
+    app.dependency_overrides[get_db] = lambda: get_test_db__fixture  # Override get_db to use the test session
 
     # Use ASGITransport with the app
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
         yield {
             "http_client": ac, 
-            "db": test_db,
+            "db": get_test_db__fixture,
         }
 
 
 @pytest_asyncio.fixture(scope="function")
 def app_subprocess(test_env_var):
-    # refresh database metadata
-    async_to_sync(drop_and_create_metadata)()
-    
     # On Windows, use creationflags to create a new process group
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
     app = subprocess.Popen(

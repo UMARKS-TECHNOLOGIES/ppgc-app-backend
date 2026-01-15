@@ -65,7 +65,7 @@ PyJWT==2.8.0
 pyotp==2.9.0
 pyproject_hooks==1.2.0
 pystyle==2.9
-pytest==8.3.3
+pytest==8.4.1
 pytest-asyncio==0.24.0
 pytest-tornasync==0.6.0.post2
 pytest-trio==0.8.0

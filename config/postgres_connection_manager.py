@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 
-from . import get_env
+from . import env_is_test
 from ppgc_backend.config.settings import (
     DEBUG,
     DEV_DATABASE_URL,
@@ -13,17 +13,17 @@ from ppgc_backend.config.settings import (
 Base = declarative_base()
 
 
-def _get_database_url() -> str:
-    if get_env() == "test":
+def get_database_url() -> str:
+    if env_is_test():
         return TEST_DATABASE_URL
     return DEV_DATABASE_URL if DEBUG else PROD_DATABASE_URL
 
 
-DATABASE_URL = _get_database_url()
+DATABASE_URL = get_database_url()
 
 async_engine = create_async_engine(
     DATABASE_URL,
-    echo=DEBUG,
+    echo=False,
     pool_size=5,           # 👈 IMPORTANT (PgBouncer-friendly)
     max_overflow=10,
     pool_timeout=30,
@@ -43,3 +43,20 @@ async def get_postgres_instance():
             yield session
         finally:
             await session.close()
+
+def runtime_async_engine():
+    database_url = get_database_url()
+    return create_async_engine(
+        database_url, echo=False, max_overflow=10, pool_timeout=30
+    ) 
+
+def runtime_async_session_maker():
+    async_engine = runtime_async_engine()
+    AsyncSessionMaker = sessionmaker(
+        bind=async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False
+    ) 
+    return AsyncSessionMaker
