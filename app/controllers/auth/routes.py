@@ -23,16 +23,17 @@ from .schemas import (
 from .services import (
     signin,
     create_user,
+    delete_user,
+    require_roles,
     handle_refresh,
+    validate_role_token,
     revoke_refresh_session,
     decode_user_from_token,
     change_pin_or_password, 
     send_password_reset_mail,
-    require_roles,
+    generate_staff_invite_link,
     confirm_email_verification_code_and_sign_user_up,
     probe_email_uniqueness_and_request_verification_code,
-    generate_staff_invite_link,
-    validate_role_token,
 )
 from ppgc_backend.app.controllers.actors.models import User
 from ppgc_backend.app.controllers.actors.enums import UserRoleChoice
@@ -104,10 +105,10 @@ async def send_password_reset_mail_endpoint(
 async def change_password_endpoint(
     data: PasswordResetSchema = Body(...),
     session: AsyncSession = Depends(get_db),
-    user: User = Depends(decode_user_from_token),
+    # user: User = Depends(decode_user_from_token),
 ):
     return await change_pin_or_password(
-        user, session, **data.model_dump()
+        data, session
     )
 
 
@@ -124,6 +125,14 @@ async def logout(
     response = Depends(revoke_refresh_session),
 ):
     """Logout by revoking the refresh token for the authenticated user."""
+    return response
+
+
+@router.delete("/delete-account/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_account(
+    response = Depends(delete_user),
+):
+    """Delete user account."""
     return response
 
 

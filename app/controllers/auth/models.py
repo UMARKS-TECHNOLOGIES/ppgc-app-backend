@@ -8,8 +8,7 @@ from sqlalchemy import (
     func,
     Enum as SQLAlchemyEnum,
 )
-from sqlalchemy.orm import relationship
-from enum import Enum as PyEnum
+from sqlalchemy.orm import relationship, backref
 from ppgc_backend.config.postgres_connection_manager import Base
 from ppgc_backend.app.controllers.actors.enums import UserRoleChoice
 
@@ -28,8 +27,11 @@ class RefreshSession(Base):
     )
     user = relationship(
         'User',
-        backref='refresh_session',
-        uselist=False,
+        backref=backref(
+            "refresh_sessions",
+            uselist=False,
+            passive_deletes=True
+        ),
         lazy='selectin'
     )
     is_revoked = Column(Boolean, default=True)

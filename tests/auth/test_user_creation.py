@@ -29,10 +29,8 @@ async def create_test_user(
 @pytest.mark.asyncio
 async def test_request_and_verify_email_verification_code(client_fixture):
     # Unpack the fixture
-    async for fixture_obj in client_fixture:
-        httpx_client: AsyncClient = fixture_obj['http_client']
-        test_db: AsyncSession = fixture_obj['db']
-        break
+    httpx_client: AsyncClient = client_fixture['http_client']
+    test_db: AsyncSession = client_fixture['db']
 
     email = REAL_TEST_EMAIL
     first_name = "crank"
@@ -114,7 +112,8 @@ async def test_request_and_verify_email_verification_code(client_fixture):
         json=confirm_data
     )
     assert response.status_code == 404
-    assert response.json()['detail'] == "Verification code incorrect or expired."
+    assert response.json()['detail'] == "Code incorrect or expired."
+    
     # assert that the user exists
     query = await test_db.execute(
         select(User)

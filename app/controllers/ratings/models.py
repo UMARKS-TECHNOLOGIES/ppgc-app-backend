@@ -1,4 +1,3 @@
-from ppgc_backend.config.postgres_connection_manager import Base
 from sqlalchemy import (
     Column,
     String,
@@ -11,13 +10,10 @@ from sqlalchemy import (
     Enum as SQLAlchemyEnum,
 )
 from sqlalchemy.orm import relationship
-from enum import Enum as PyEnum
 
-class RatingType(PyEnum):
-    """Enum for types of rateable assets"""
-    HOTEL = "hotel"
-    ROOM = "room"
-    PROPERTY = "property"
+
+from .enums import RatingType
+from ppgc_backend.config.postgres_connection_manager import Base
 
 class Rating(Base):
     __tablename__ = 'ratings'

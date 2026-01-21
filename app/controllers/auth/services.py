@@ -4,28 +4,30 @@ import asyncio
 from functools import wraps
 from sqlalchemy import and_
 from jose import jwt, JWTError
-from typing import Optional
 from sqlalchemy import delete, or_
 from sqlalchemy.future import select
 from passlib.context import CryptContext
 from sqlalchemy.exc import IntegrityError
-from typing import Callable, Literal, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta, timezone
+from typing import Callable, Literal, Tuple, Awaitable, Any, Optional
 from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, Request, Response, Query
 
 from .schemas import (
-    EmailEtCodeSchema,
+    PasswordResetSchema,
     PinOrPasswordSchema,
     UserRegistrationSchema,
     RequestEmailCodeSchema,
     ProbeUserExistenceSchema,
     VerifyEmailAndSignUserUpSchema,
 )
+from .utils import (
+    is_secure_request,
+    request_verification_code, # don't move yet
+    confirm_email_verification_code,
+)
 from .models import RefreshSession, RoleBasedToken
-from .utils import is_secure_request
 from ppgc_backend.app.initiator import logger
 from ppgc_backend.app.models import (
     User,
@@ -33,11 +35,12 @@ from ppgc_backend.app.models import (
 )
 from ppgc_backend.config import env_is_test
 from ppgc_backend.app.utils.store import (
-    send_email,
-    substituted_string,
     transient_cleanup_interval,
     email_verification_code_ttl,
-    read_email_from_html_template_name,
+)
+from .mail_utils import (
+    send_password_reset_code,
+    send_email_verification_code,
 )
 from ppgc_backend.app.controllers.actors.schemas import UserResponseSchema
 from ppgc_backend.app.database import get_db
@@ -56,8 +59,8 @@ from ppgc_backend.config.settings import (
 from ppgc_backend.log_config.logger_config import log_error
 from ppgc_backend.app.enums import EmailManagementReasonChoice
 from ppgc_backend.app.controllers.actors.enums import UserRoleChoice
-from ppgc_backend.config.postgres_connection_manager import get_postgres_instance
 from ppgc_backend.app.enums import EmailManagementReasonChoice as TransientReason
+from ppgc_backend.config.postgres_connection_manager import runtime_async_session_maker
 
 
 import logging
@@ -180,7 +183,7 @@ async def authenticate_user(db: AsyncSession, login: str, **kwargs):
     
     # Execute the query
     result = await db.execute(user_query)
-    user = result.scalars().first()
+    user: User = result.scalars().first()
 
     if not user:
         return False
@@ -191,7 +194,9 @@ async def authenticate_user(db: AsyncSession, login: str, **kwargs):
     # Verify the provided password against the stored password/pin hash
     verified =  (verify_password(password, user.password_hash)
         if (user.password_hash and password)
-        else verify_password(pin, user.pin_hash)
+        else verify_token(pin, user.pin_hash) 
+            if (user.pin_hash and pin) 
+            else None
     )
     
     if not verified:  
@@ -280,6 +285,7 @@ credentials_exception = HTTPException(
     detail="Could not validate credentials",
     headers={"WWW-Authenticate": "Bearer"},
 )
+
 
 def get_session_id(request: Request):
     session_id_str = request.cookies.get("session_id")
@@ -372,7 +378,8 @@ async def email_code_cleanup_loop(
     """
     async def run_cache_task():
         while True:
-            async with get_postgres_instance() as session:
+            AsyncSessionLocal = runtime_async_session_maker()
+            async with AsyncSessionLocal() as session:
                 session: AsyncSession
                 try:
                     transient_instance = (await session.execute(
@@ -411,33 +418,12 @@ async def email_code_cleanup_loop(
     #    await task  # ensure cleanup before test exits
 
 
-async def request_verification_code(email_address:str, username: str) -> str:
-    
-    code = '{:04d}'.format(random.randint(0, 9999))
-    
-    try:
-        await send_email_verification_code(
-            code = code,
-            user_name = username,
-            email_address=email_address
-        )
-    except Exception as e:
-        f_message = "An error occured while requesting verification email"
-        d_message= f"{f_message} Reason: {e}" 
-        logger.error(d_message)
-        raise HTTPException(
-            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail = f_message
-        )
-    
-    return code
-
-
 async def handle_email_code_request(
     reason: TransientReason,
     db: AsyncSession,
     email: str,
-    email_name_placeholder: str,
+    transient_ttl: int,
+    mailer_func: Callable[[], Awaitable[Any]],
 ):
     # Check if the request already exists
     query = await db.execute(
@@ -459,7 +445,7 @@ async def handle_email_code_request(
         )
      
     # Generate and send verification code
-    code = await request_verification_code(email, email_name_placeholder)
+    code = await mailer_func()
 
     try:
         # Get or create transient verification store entry
@@ -471,7 +457,7 @@ async def handle_email_code_request(
             )
         )).scalars().first()
 
-        expiry_time = datetime.now(timezone.utc) + timedelta(seconds=email_verification_code_ttl())
+        expiry_time = datetime.now(timezone.utc) + timedelta(seconds=transient_ttl)
 
         if not verification_instance:
             verification_instance = TransientVerificationStore(
@@ -486,7 +472,7 @@ async def handle_email_code_request(
         await db.commit()
 
         # Start cleanup task
-        # await email_code_cleanup_loop(email, code, reason)
+        await email_code_cleanup_loop(email, code, reason)
 
         return expiry_time
     except Exception as e:
@@ -502,7 +488,11 @@ async def handle_email_code_request(
 
 
 # user existence
-async def probe_email_uniqueness_and_request_verification_code(session: AsyncSession, data: RequestEmailCodeSchema):
+async def probe_email_uniqueness_and_request_verification_code(
+    session: AsyncSession, 
+    data: RequestEmailCodeSchema,
+    ttl: int = email_verification_code_ttl()
+):
     email = data.email
     name = data.first_name
     
@@ -518,7 +508,10 @@ async def probe_email_uniqueness_and_request_verification_code(session: AsyncSes
             detail = f"Email {email} already exists"
         )
     
-    expiry_time = await handle_email_code_request(data._reason,session,email,name)
+    expiry_time = await handle_email_code_request(
+        data._reason, session, email, ttl,
+        lambda: send_email_verification_code(name, email)
+    )
     
     return {
         "detail" : f"A verification code has been sent to the email {email}. Also check your spam folder.",
@@ -526,106 +519,11 @@ async def probe_email_uniqueness_and_request_verification_code(session: AsyncSes
     }
 
 
-async def send_email_verification_code(
-    code: str,
-    user_name: str,
-    email_address: str, 
-):
-    # call the email function and send the email
-    # extract the email content from the template
-    email_template_content = read_email_from_html_template_name('email_verification_code_template')
-    property_street_address = "Port Harcourt"
-    
-    email_string = substituted_string(
-        email_template_content,
-        {
-            "user_name":user_name,
-            "verification_code":code,
-            "prince_paradise_address": property_street_address
-        }
-    )
-    from_address="team@stackfinancialsolutions.com"
-    subject="PPGC Verification Code"
-    from_name="Prince Paradise"
-    #to_name="Customer"
-
-    send_email(
-        from_email=from_address,
-        to_email=email_address,
-        from_name=from_name,
-        subject=subject,
-        html_email=email_string
-    )
-
-
-async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).filter(User.id == user_id))
-    user = result.scalars().first()
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    
+async def delete_user(request: Request, user: User = Depends(decode_user_from_token), db: AsyncSession = Depends(get_db)):
     await db.delete(user)
     await db.commit()
-    return user
-
-
-# decorator
-def confirm_email_verification_code(reason: TransientReason = None):
-    def outer_wrapper(func):
-        @wraps(func)
-        async def wrapper(
-            data: EmailEtCodeSchema,
-            session: AsyncSession,
-            *args,
-            **kwargs
-        ):
-            if DEBUG:
-                record = (await session.execute(
-                    select(TransientVerificationStore).where(
-                        TransientVerificationStore.email_address == data.email,
-                    )
-                )).scalars().first()
-                logger.info(f"**First record: {record}")
-                if record:
-                    logger.info(f"**Code: {record.email_code}")
-                    logger.info(f"**Reason: {record.reason}")
-
-            filters = [
-                TransientVerificationStore.email_address == data.email,
-                TransientVerificationStore.email_code == data.code,
-            ]
-
-            # If reason is provided, enforce it
-            if reason is not None:
-                filters.append(TransientVerificationStore.reason == reason)
-
-            record = (await session.execute(
-                select(TransientVerificationStore).where(and_(*filters))
-            )).scalars().first()
-
-            if not record:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Verification code incorrect or expired."
-                )
-
-            # Expiry check (recommended)
-            now = datetime.now(timezone.utc)
-            if record.email_code_expiry_time and record.email_code_expiry_time <= now:
-                await session.delete(record)
-                await session.commit()
-                raise HTTPException(
-                    status_code=status.HTTP_410_GONE,
-                    detail="Verification code expired."
-                )
-
-            await session.delete(record)
-            await session.commit()
-
-            return await func(data, session, *args, **kwargs)
-
-        return wrapper
-    return outer_wrapper
+    # remove the user from the request object
+    request.state.user = None
 
 
 @confirm_email_verification_code(TransientReason.email_verification)
@@ -806,162 +704,68 @@ async def send_password_reset_mail(
     session: AsyncSession,
     ttl_in_secs: int = get_password_reset_ttl(),
 ):
-    """
-        `email:reason` is the hset's key 
-        the reason is the field
-        the code is the value
-    """
     query = await session.execute(
         select(User)
         .where(User.email == email)
     )
-    user = query.scalars().one_or_none()
+    user: User = query.scalars().one_or_none()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found!"
         )
 
-    reason = EmailManagementReasonChoice.password_change.value
-
-    # Check if the code exists in the cache
-    query = await session.execute(
-        select(TransientVerificationStore)
-        .where(
-            TransientVerificationStore.email_address == email,
-            TransientVerificationStore.reason == reason
-        )
+    expiry_time = await handle_email_code_request(
+        EmailManagementReasonChoice.password_change, 
+        session, user.email, ttl_in_secs,
+        lambda: send_password_reset_code(email)
     )
-    reset_instance = query.scalars().first()
 
-    if reset_instance: #When a result is found
-        expiry: datetime = reset_instance.email_code_expiry_time
-        raise HTTPException(
-            status_code=status.HTTP_302_FOUND,
-            detail = {
-                "message" : "Please wait before requesting a new password link.",
-                "expiry" : expiry.isoformat() if expiry else None
-            }
-        )
-    else: # When no result is found
-        # Generate a new five-digit code
-        code = '{:05d}'.format(random.randint(0, 9999))
-
-        # call the email function and send the email
-        # extract the email content from the template
-        email_template_content = read_email_from_html_template_name('password_reset_template')
-        prince_paradise_address = "Port Harcourt"
-        
-        email_string = substituted_string(
-            email_template_content,
-            {
-                "reset_code":code,
-                "prince_paradise_address": prince_paradise_address
-            }
-        )
-        from_address="team@stackfinancialsolutions.com"
-        subject="PPGC Verification Code"
-        from_name="Prince Paradise"
-        #to_name="Customer"
-
-        send_email(
-            from_email=from_address,
-            to_email=email,
-            from_name=from_name,
-            subject=subject,
-            html_email=email_string
-        )
+    return {
+        "message" : f"A verification code has been sent to the email {email}. Also check your spam folder.",
+        "expiry": expiry_time.isoformat()
+    }
 
 
-        try:
-            # create an instance of the user with the data
-            transient_instance = TransientVerificationStore(
-                email_address = email,
-                reason = reason,
-                email_code=code
-            )
-            session.add(transient_instance)
-            await session.flush()
-
-            expiry_time: datetime = transient_instance.created_at + timedelta(seconds=ttl_in_secs)
-            transient_instance.email_code_expiry_time = expiry_time
-            await session.commit()
-
-            # run cleanup task
-            await email_code_cleanup_loop(email, code, reason)
-
-            return {
-                "detail":"Password reset email sent!",
-                "expiry": expiry_time.isoformat()
-            }
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Something went wrong sending a password reset mail. Please try again later.",
-                headers={"X-Error": "Server error"},
-            )
-        
-
+@confirm_email_verification_code(TransientReason.password_change)
 async def change_pin_or_password(
-    user: User,
+    data: PasswordResetSchema,
     session: AsyncSession,
-    **kwargs,
 ):
-    password = kwargs.get('password',None)
-    pin = kwargs.get('pin',None)
-    code = kwargs.get('code')
-    email = user.email
-
-    #query = await session.execute(
-    #    select(TransientVerificationStore)
-    #    .where(
-    #        TransientVerificationStore.email_address == email,
-    #        TransientVerificationStore.email_code == code,
-    #    )
-    #)
-    #transient_instance = query.scalars().first()
-
-    #now = datetime.now(timezone.utc)
-
-    #if not transient_instance or transient_instance.email_code_expiry_time < now:
-    #    raise HTTPException(
-    #        status_code=status.HTTP_400_BAD_REQUEST,
-    #        detail='Password/Pin Request either expired or not initiated!'
-    #    )
+    password = data.password
+    pin = data.pin
+    email = data.email
 
     # check that password ain't same
-    result = await authenticate_user(session, email, **{'password':password,'pin':pin})
+    pin_or_password_data = {'password':password,'pin':pin}
+    result = await authenticate_user(session, email, **pin_or_password_data)
     if result:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="New Password/Pin can't be same as old."
         )
-    else:
-        query = await session.execute(
-            select(User)
-            .where(User.email == email)
+    
+    query = await session.execute(
+        select(User)
+        .where(User.email == email)
+    )
+    user: User = query.scalars().first()
+    if not user:
+        if DEBUG:
+            logger.info(f'**User not found')
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Subject for Password/Pin change not found!"
         )
-        user = query.scalars().first()
-        if not user:
-            if DEBUG:
-                logger.info(f'**User not found')
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Subject for Password/Pin change not found!"
-            )
-        
-        if password:
-            hash = get_password_hash(password)
-            user.password_hash = hash
-        elif pin:
-            hash = get_password_hash(pin)
-            user.pin_hash = hash
-        session.add(user)
-        await session.commit()
-
-        # delete the transient instance
-        # await session.delete(transient_instance)
-        # await session.commit()
+    
+    if password:
+        hash = get_password_hash(password)
+        user.password_hash = hash
+    elif pin:
+        hash = get_password_hash(pin)
+        user.pin_hash = hash
+    session.add(user)
+    await session.commit()
 
 
 def verify_pin_or_password(user: User, data: PinOrPasswordSchema):
@@ -1006,7 +810,7 @@ async def generate_staff_invite_link(
     admin_user: User,
     email: Optional[str] = None,
     expires_in_days: int = 3,
-    role: UserRoleChoice = 'staff',
+    role: UserRoleChoice = UserRoleChoice.staff,
 ) -> dict:
     """Generate a unique staff invite link with role-based token.
     
@@ -1021,7 +825,8 @@ async def generate_staff_invite_link(
         dict with token, expiry, and role info
     """
     # Validate role
-    valid_roles = [r.value for r in UserRoleChoice]
+    valid_roles = [r for r in UserRoleChoice]
+    valid_roles.remove(UserRoleChoice.admin) # exclude admin
     if role not in valid_roles:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1054,7 +859,7 @@ async def generate_staff_invite_link(
         return {
             "token": plain_token,
             "expires_at": expires_at.isoformat(),
-            "role": role.lower()
+            "role": role.value.lower()
         }
     
     except Exception as e:
@@ -1097,15 +902,16 @@ async def validate_role_token(
     matching_token = result.scalars().first()
 
     # Check expiry
-    now = datetime.now(timezone.utc)
-    if not matching_token or matching_token.expires_at <= now:
-        raise HTTPException(
-            status_code = status.HTTP_400_BAD_REQUEST,
-            detail="Role token expired or malformed"
-        )
+    try:
+        now = datetime.now(timezone.utc)
+        if not matching_token or matching_token.expires_at <= now:
+            raise HTTPException(
+                status_code = status.HTTP_400_BAD_REQUEST,
+                detail="Role token expired or malformed"
+            )
+        role = matching_token.role
+        return role
+    finally:
+        await db.delete(matching_token)
+        await db.commit()
     
-    role = matching_token.role
-    await db.delete(matching_token)
-    await db.commit()
-    
-    return role

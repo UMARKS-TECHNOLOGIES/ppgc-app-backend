@@ -9,9 +9,10 @@ from ppgc_backend.app.initiator import logger
 from ppgc_backend.config.settings import DEBUG
 from .schemas import RecoveryEmailVerificationSchema
 from ppgc_backend.app.controllers.actors.models import User
-from ppgc_backend.app.models import TransientVerificationStore
+from ppgc_backend.app.utils.store import email_verification_code_ttl
 from ppgc_backend.app.controllers.auth.services import handle_email_code_request
 from ppgc_backend.app.enums import EmailManagementReasonChoice as TransientReason
+from ppgc_backend.app.controllers.auth.mail_utils import send_email_verification_code
 from ppgc_backend.app.controllers.auth.services import confirm_email_verification_code
 
 
@@ -66,7 +67,11 @@ async def request_recovery_email_change(
             detail="This email is already in use as a recovery email"
         )
         
-    expiry_time = await handle_email_code_request("recovery-email-verification",db,new_recovery_email,user.first_name)
+    expiry_time = await handle_email_code_request(
+        TransientReason.recovery_email_verification,
+        db, new_recovery_email, email_verification_code_ttl(),
+        lambda: send_email_verification_code(user.first_name, new_recovery_email)
+    )
 
     return {
         "detail": f"Verification code sent to {new_recovery_email}. Please check your email.",

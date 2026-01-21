@@ -4,7 +4,7 @@ Schemas for settings endpoints
 from datetime import date
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from ppgc_backend.app.controllers.auth.services import EmailEtCodeSchema
+from ppgc_backend.app.controllers.auth.schemas import EmailEtCodeSchema
 from ppgc_backend.app.controllers.actors.schemas import UserResponseSchema
 
 

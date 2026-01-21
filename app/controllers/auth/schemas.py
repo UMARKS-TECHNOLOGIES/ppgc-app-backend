@@ -241,12 +241,8 @@ class TokenData(BaseModel):
     }
 
 
-class PasswordResetSchema(PinOrPasswordSchema):
+class PasswordResetSchema(EmailEtCodeSchema, PinOrPasswordSchema):
     """Schema for resetting a user password or PIN."""
-
-    #email: str = Field(..., description="User email address")
-    #code: str = Field(..., description="Password reset verification code")
-
     #model_config = {
     #    "json_schema_extra": {
     #        "description": "Schema for password or PIN reset."
@@ -258,7 +254,7 @@ class PasswordResetSchema(PinOrPasswordSchema):
 class SendPasswordResetMail(BaseModel):
     """Response returned after sending password reset email."""
 
-    detail: str = Field(..., description="Success message")
+    message: str = Field(..., description="Success message")
     expiry: str = Field(..., description="Code expiry time in ISO format")
 
     model_config = {

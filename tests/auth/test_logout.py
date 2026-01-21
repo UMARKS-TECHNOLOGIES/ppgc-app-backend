@@ -19,10 +19,8 @@ from ppgc_backend.tests.auth.test_user_creation import create_test_user, user_da
 @pytest.mark.asyncio
 async def test_logout_revokes_refresh_token(client_fixture):
     """Test that logout endpoint revokes the refresh token."""
-    async for fixture_obj in client_fixture:
-        httpx_client: AsyncClient = fixture_obj['http_client']
-        test_db: AsyncSession = fixture_obj['db']
-        break
+    httpx_client: AsyncClient = client_fixture['http_client']
+    test_db: AsyncSession = client_fixture['db']
 
     # Create test user
     user = await create_test_user(test_db)
@@ -47,7 +45,7 @@ async def test_logout_revokes_refresh_token(client_fixture):
     # Call logout endpoint
     headers = {"Authorization": f"Bearer {access_token}"}
     response = await httpx_client.delete(
-        f"/auth/logout/{refresh_id}/",
+        f"/auth/logout/",
         headers=headers
     )
     assert response.status_code == 204

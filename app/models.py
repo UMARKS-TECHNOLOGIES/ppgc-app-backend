@@ -19,6 +19,7 @@ from ppgc_backend.app.enums import (
 )
 from .model_helper import CloudImageDetail
 from ppgc_backend.app.controllers.actors.models import User
+from ppgc_backend.app.controllers.ratings.models import Rating
 from ppgc_backend.config.postgres_connection_manager import Base
 from ppgc_backend.app.controllers.bookings.models import Booking
 from ppgc_backend.app.controllers.hotels.models import Hotel, Room
@@ -28,6 +29,7 @@ from ppgc_backend.app.controllers.savings.models import DailySavings
 from ppgc_backend.app.controllers.inspection.models import Inspection
 from ppgc_backend.app.controllers.investments.models import Investment
 from ppgc_backend.app.controllers.transactions.models import Transaction
+from ppgc_backend.app.controllers.bank_accounts.models import BankAccount
 from ppgc_backend.app.controllers.activity_logging.models import ActivityLog
 from ppgc_backend.app.controllers.two_factor_auth.models import TwoFactorAuth
 from ppgc_backend.app.controllers.two_factor_auth.models import TwoFactorAuthLog
@@ -116,11 +118,13 @@ models = [
     User,
     Room,
     Hotel,
+    Rating,
     Booking,
     Property,
     Investment, 
     Inspection,
     ActivityLog,
+    BankAccount,
     Transaction,
     DailySavings,
     TwoFactorAuth,
