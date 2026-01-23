@@ -65,7 +65,7 @@ class User(Base):
 
     nin = Column(String)
     date_of_birth = Column(Date, nullable=True)
-    dial_code = Column(String)
+    dial_code = Column(String, default="+234")
     phone_number = Column(String, nullable=True)
     address = Column(String, nullable=True)
     email_notification = Column(Boolean, default=True)

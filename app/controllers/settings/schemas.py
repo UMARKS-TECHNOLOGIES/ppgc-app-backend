@@ -3,9 +3,10 @@ Schemas for settings endpoints
 """
 from datetime import date
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from ppgc_backend.app.schemas import CloudImageCreateSchema
 from ppgc_backend.app.controllers.auth.schemas import EmailEtCodeSchema
 from ppgc_backend.app.controllers.actors.schemas import UserResponseSchema
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
 
 
 class RecoveryEmailRequestSchema(BaseModel):
@@ -51,13 +52,34 @@ class UserSettingsBase(BaseModel):
     gender: Optional[str] = None
     nin: Optional[str] = None
     date_of_birth: Optional[date] = None
-    dial_code: Optional[str] = None
     phone_number: Optional[str] = None
-    adress: Optional[str] = None
+    address: Optional[str] = None
     email_notification: bool = True
     push_notification: bool = True
+    profile_avatar: Optional[CloudImageCreateSchema] = None
 
     model_config = ConfigDict(from_attributes = True)
+
+    @field_validator("nin")
+    @classmethod
+    def validate_nin(cls, v):
+        if v is not None and len(v) != 11:
+            raise ValueError("NIN must be exactly 11 characters long")
+        return v
+
+    @field_validator("pass_code", check_fields=False)
+    @classmethod
+    def validate_pass_code(cls, v):
+        if v is not None and len(v) != 4:
+            raise ValueError("Pass code must be exactly 4 characters long")
+        return v
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone_number(cls, v):
+        if v is not None and len(v) != 10:
+            raise ValueError("Phone number must be exactly 10 characters long")
+        return v
 
 class UserSettingsSchema(UserSettingsBase):
     """Schema for user settings"""
@@ -65,4 +87,5 @@ class UserSettingsSchema(UserSettingsBase):
 
 class UserSettingsResponseSchema(UserResponseSchema):
     """Schema for user settings"""
+    dial_code: Optional[str] = None 
     pass

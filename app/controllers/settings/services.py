@@ -153,7 +153,7 @@ async def handle_update_user_settings(data: dict, db: AsyncSession, user: User) 
         return user
     except Exception as e:
         f_msg = "An error occured updating user records."
-        d_msg = f"{d_msg} Reason: {e}"
+        d_msg = f"{f_msg} Reason: {e}"
         if DEBUG:
             logger.error(d_msg)
         raise HTTPException(
