@@ -3,6 +3,7 @@ import enum
 class EmailManagementReasonChoice(str, enum.Enum):
     email_verification = 'email-verification'
     password_change = 'password-change'
+    password_change_confirmation = 'password-change-confirmation'
     verified = 'verified'
     recovery_email_verification = "recovery-email-verification"
 

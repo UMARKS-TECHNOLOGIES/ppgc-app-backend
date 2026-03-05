@@ -1,4 +1,5 @@
 import pytest
+import secrets
 from httpx import AsyncClient
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,15 +24,27 @@ async def test_password_change_no_mail(client_fixture):
 
     code = "1234"
     # create transient instance
-    reason = EmailManagementReasonChoice.password_change.value
+    reason = EmailManagementReasonChoice.password_change
     reset_instance = TransientVerificationStore(
         email_address = email,
         reason = reason,
-        email_code=code,
-        email_code_expiry_time=datetime.now(timezone.utc) + timedelta(seconds=get_password_reset_ttl()),
+        email_code = code,
+        email_code_expiry_time = datetime.now(timezone.utc) + timedelta(seconds=get_password_reset_ttl()),
     )
     test_db.add(reset_instance)
     await test_db.commit()
+
+    #** Confirm reset code before changing password **#
+    response = await httpx_client.post(
+        "/auth/confirm-pin-or-password-change-code/",
+        json={
+            "email": email,
+            "code": reset_instance.email_code,
+        }
+    )
+    assert response.status_code == 200
+    confirmation_data = response.json()
+    assert "x_expiration" in confirmation_data
     
 
     #** Call endpoint again before expiry **#
@@ -40,7 +53,6 @@ async def test_password_change_no_mail(client_fixture):
         "/auth/change-pin-or-password/",
         json={
             "email": email,
-            "code": reset_instance.email_code,
             "password": new_password
         }
     )

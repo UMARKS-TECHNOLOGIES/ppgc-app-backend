@@ -61,6 +61,6 @@ alembic history
 
 
 ## build image to docker hub repo
-docker build -t crankgig/ppgc_fastapi .
+docker build -t crankgig/ppgc_fastapi:2026.01.23 -t crankgig/ppgc_fastapi:latest .
 ### push the image to docker hub
-docker push crankgig/ppgc_fastapi
+docker push crankgig/ppgc_fastapi:latest

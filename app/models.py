@@ -50,6 +50,8 @@ class TransientVerificationStore(Base):
     email_code_expiry_time = Column(DateTime(timezone=True), nullable=True)
     email_address_verified = Column(Boolean, default=False)
     
+    expiry = Column(DateTime(timezone=True), nullable=True)
+    
     email_link = Column(String, nullable=True)
     email_link_time = Column(
         _types.TIMESTAMP(timezone=True),

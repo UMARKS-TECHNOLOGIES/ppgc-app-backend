@@ -10,8 +10,10 @@ from .schemas import (
     PasscodeSchema,
     SigninResponse,
     UserResponseSchema,
-    PasswordResetSchema,
     SendPasswordResetMail,
+    ApplyPinOrPasswordChangeSchema,
+    ConfirmPinOrPasswordChangeSchema,
+    ConfirmPinOrPasswordChangeResponseSchema,
     RequestEmailCodeSchema,
     StaffRegistrationSchema,
     RequestEmailResponseSchema,
@@ -32,6 +34,7 @@ from .services import (
     change_pin_or_password, 
     send_password_reset_mail,
     generate_staff_invite_link,
+    handle_confirm_pin_or_password_change_code,
     confirm_email_verification_code_and_sign_user_up,
     probe_email_uniqueness_and_request_verification_code,
 )
@@ -103,13 +106,24 @@ async def send_password_reset_mail_endpoint(
 
 @router.post("/change-pin-or-password/")
 async def change_password_endpoint(
-    data: PasswordResetSchema = Body(...),
+    data: ApplyPinOrPasswordChangeSchema = Body(...),
     session: AsyncSession = Depends(get_db),
     # user: User = Depends(decode_user_from_token),
 ):
     return await change_pin_or_password(
         data, session
     )
+
+
+@router.post(
+    "/confirm-pin-or-password-change-code/",
+    response_model=ConfirmPinOrPasswordChangeResponseSchema,
+)
+async def confirm_pin_or_password_change_code(
+    session: AsyncSession = Depends(get_db),
+    data: ConfirmPinOrPasswordChangeSchema = Body(...),
+):
+    return await handle_confirm_pin_or_password_change_code(data, session)
 
 
 @router.post("/confirm-passcode/")

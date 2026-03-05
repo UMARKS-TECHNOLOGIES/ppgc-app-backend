@@ -43,18 +43,16 @@ def confirm_email_verification_code(reason: TransientReason = None):
                     detail="Code incorrect or expired."
                 )
 
-            try:
-                # Expiry check (recommended)
-                now = datetime.now(timezone.utc)
-                if record.email_code_expiry_time and record.email_code_expiry_time <= now:
-                    raise HTTPException(
-                        status_code=status.HTTP_410_GONE,
-                        detail="Code expired."
-                    )
-                return await func(data, session, *args, **kwargs)
-            finally:
-                await session.delete(record)
-                await session.commit()
+            # Expiry check (recommended)
+            now = datetime.now(timezone.utc)
+            if record.email_code_expiry_time and record.email_code_expiry_time <= now:
+                raise HTTPException(
+                    status_code=status.HTTP_410_GONE,
+                    detail="Code expired."
+                )
+            await session.delete(record)
+            await session.commit()
+            return await func(data, session, *args, **kwargs)
         return wrapper
     return outer_wrapper
 

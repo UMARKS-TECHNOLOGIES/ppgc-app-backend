@@ -2,9 +2,11 @@
 from fastapi import (
     Depends, 
     FastAPI,
+    Request,
     APIRouter, 
 )
 from sqlalchemy import text
+from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
@@ -20,8 +22,6 @@ from ppgc_backend.config.settings import (
     DEBUG,
     CORS_ORIGINS
 )
-from fastapi import Request
-from contextlib import asynccontextmanager
 from ppgc_backend.app.controllers.auth import routes as auth_routes
 from ppgc_backend.app.controllers.logs import routes as logs_routes
 from ppgc_backend.app.controllers.hotels import routes as hotel_routes

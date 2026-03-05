@@ -1,8 +1,6 @@
 import pytest
-import asyncio
 from httpx import AsyncClient
 from sqlalchemy import select
-from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ppgc_backend.config.settings import REAL_TEST_EMAIL
@@ -53,13 +51,24 @@ async def test_change_pin_or_password(client_fixture):
     assert reset_instance
     
 
-    #** Call endpoint again before expiry **#
+    #** Confirm reset code before changing password **#
+    response = await httpx_client.post(
+        "/auth/confirm-pin-or-password-change-code/",
+        json={
+            "email": email,
+            "code": reset_instance.email_code,
+        }
+    )
+    assert response.status_code == 200
+    confirmation_data = response.json()
+    assert "x_expiration" in confirmation_data
+
+    #** Change password after successful confirmation **#
     new_password = '$whathaFak'
     response = await httpx_client.post(
         "/auth/change-pin-or-password/",
         json={
             "email": email,
-            "code": reset_instance.email_code,
             "password": new_password
         }
     )

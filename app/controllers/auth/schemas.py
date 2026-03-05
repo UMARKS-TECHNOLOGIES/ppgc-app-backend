@@ -6,6 +6,9 @@ from ppgc_backend.app.controllers.actors.enums import UserRoleChoice
 from ppgc_backend.app.controllers.actors.schemas import UserResponseSchema # for a purpose
 
 
+class Email(BaseModel):
+    email: str
+
 class EmailEtCodeSchema(BaseModel):
     """Payload containing an email address and a verification code."""
 
@@ -248,6 +251,26 @@ class PasswordResetSchema(EmailEtCodeSchema, PinOrPasswordSchema):
     #        "description": "Schema for password or PIN reset."
     #    }
     #}
+    pass
+
+
+class ConfirmPinOrPasswordChangeSchema(EmailEtCodeSchema):
+    """Schema for confirming reset code before password/PIN change."""
+    pass
+
+
+class ConfirmPinOrPasswordChangeResponseSchema(BaseModel):
+    """Response returned after successful reset-code confirmation."""
+
+    detail: str = Field(..., description="Success message")
+    x_expiration: str = Field(
+        ...,
+        description="Transient confirmation expiry timestamp in ISO format",
+    )
+
+
+class ApplyPinOrPasswordChangeSchema(PinOrPasswordSchema, Email):
+    """Schema for applying password/PIN change after confirmation."""
     pass
 
 
