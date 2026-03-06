@@ -22,6 +22,8 @@ from ppgc_backend.config.settings import (
     DEBUG,
     CORS_ORIGINS
 )
+from ppgc_backend.config.settings import DEBUG, logger
+from ppgc_backend.log_config.logger_config import log_error
 from ppgc_backend.app.controllers.auth import routes as auth_routes
 from ppgc_backend.app.controllers.logs import routes as logs_routes
 from ppgc_backend.app.controllers.hotels import routes as hotel_routes
@@ -33,6 +35,7 @@ from ppgc_backend.app.controllers.inspection import routes as inspection_routes
 from ppgc_backend.app.controllers.properties import routes as properties_routes
 from ppgc_backend.app.controllers.investments import routes as investments_routes
 from ppgc_backend.app.controllers.transactions import routes as transaction_routes
+from ppgc_backend.app.controllers.payments import routes as payments_routes
 from ppgc_backend.app.controllers.bank_accounts import routes as bank_accounts_routes
 from ppgc_backend.app.controllers.two_factor_auth import routes as two_factor_auth_routes
 from ppgc_backend.app.controllers.activity_logging import routes as activity_logging_routes
@@ -117,6 +120,34 @@ async def test_database(
             "environment": environment,
         }
 
+
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    action = f"{request.method} {request.url.path}"
+
+    if DEBUG:
+        logger.exception(action)
+    log_error(f"**{action} {exc}")
+
+    raise exc
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    action = f"{request.method} {request.url.path}"
+
+    if DEBUG:
+        logger.exception(action)
+    log_error(f"**{action} {exc}")
+
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()},
+    )
+
 # Include routers
 app.include_router(logs_routes.router)
 app.include_router(auth_routes.router)
@@ -127,6 +158,7 @@ app.include_router(settings_routes.router)
 app.include_router(inspection_routes.router)
 app.include_router(properties_routes.router)
 app.include_router(transaction_routes.router)
+app.include_router(payments_routes.router)
 app.include_router(investments_routes.router)
 app.include_router(bank_accounts_routes.router)
 app.include_router(two_factor_auth_routes.router)

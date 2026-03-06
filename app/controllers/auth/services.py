@@ -1,7 +1,5 @@
-import random
 import secrets
 import asyncio
-from functools import wraps
 from sqlalchemy import and_
 from jose import jwt, JWTError
 from sqlalchemy import delete, or_
@@ -57,16 +55,13 @@ from ppgc_backend.config.settings import (
     SUPER_ADMIN_EMAIL_ADDRESS,
     REFRESH_TOKEN_EXPIRY_MINUTES,
 )
+from ppgc_backend.app.initiator import logger
 from ppgc_backend.log_config.logger_config import log_error
 from ppgc_backend.app.enums import EmailManagementReasonChoice
 from ppgc_backend.app.controllers.actors.enums import UserRoleChoice
 from ppgc_backend.app.enums import EmailManagementReasonChoice as TransientReason
 from ppgc_backend.config.postgres_connection_manager import runtime_async_session_maker
 
-
-import logging
-
-logger = logging.getLogger(__name__)
 
 # Constants for JWT
 SECRET_KEY = ACCESS_SECRET_KEY
@@ -734,99 +729,108 @@ async def handle_confirm_pin_or_password_change_code(
     session: AsyncSession,
     ttl_in_secs: int = get_password_reset_ttl(),
 ):
-    now = datetime.now(timezone.utc)
-    x_expiration = now + timedelta(seconds=ttl_in_secs)
-    reason = TransientReason.password_change_confirmation
-    email = data.email
-    confirmation_instance = (await session.execute(
-        select(TransientVerificationStore)
-        .where(
-            TransientVerificationStore.email_address == email,
-            TransientVerificationStore.reason == reason,
-        )
-    )).scalars().first()
-    if not confirmation_instance:
-        verification_instance = TransientVerificationStore(
-            email_address=email,
-            reason = reason
-        )
+    logger.info("**Hahaha")
+    try:
+        now = datetime.now(timezone.utc)
+        x_expiration = now + timedelta(seconds=ttl_in_secs)
+        reason = TransientReason.password_change_confirmation
+        email = data.email
+        confirmation_instance = (await session.execute(
+            select(TransientVerificationStore)
+            .where(
+                TransientVerificationStore.email_address == email,
+                TransientVerificationStore.reason == reason,
+            )
+        )).scalars().first()
+        if not confirmation_instance:
+            verification_instance = TransientVerificationStore(
+                email_address=email,
+                reason = reason
+            )
 
-    verification_instance.expiry = x_expiration
+        verification_instance.expiry = x_expiration
 
-    session.add(verification_instance)
-    await session.commit()
+        session.add(verification_instance)
+        await session.commit()
 
-    return {
-        "detail": "Reset code confirmed. Proceed to change your PIN or password.",
-        "x_expiration": x_expiration.isoformat(),
-    }
+        return {
+            "detail": "Reset code confirmed. Proceed to change your PIN or password.",
+            "x_expiration": x_expiration.isoformat(),
+        }
+    except Exception as e:
+        log_error({e})
+        raise e
 
 
 async def change_pin_or_password(
     data: ApplyPinOrPasswordChangeSchema,
     session: AsyncSession,
 ):
-    password = data.password
-    pin = data.pin
-    email = data.email
-
-    transient_query = await session.execute(
-        select(TransientVerificationStore).where(
-            and_(
-                TransientVerificationStore.email_address == email,
-                TransientVerificationStore.reason == TransientReason.password_change_confirmation,
-            )
-        )
-    )
-    transient_instance: TransientVerificationStore = transient_query.scalars().first()
-    now = datetime.now(timezone.utc)
-
-    exc = HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail="Password/PIN change request expired. Confirm code again.",
-    )
-    if not transient_instance:
-        raise exc
-    
     try:
-        if (transient_instance.expiry <= now):
-            raise exc
+        password = data.password
+        pin = data.pin
+        email = data.email
 
-        # check that password ain't same
-        pin_or_password_data = {'password':password,'pin':pin}
-        result = await authenticate_user(session, email, **pin_or_password_data)
-        if result:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="New Password/Pin can't be same as old."
+        transient_query = await session.execute(
+            select(TransientVerificationStore).where(
+                and_(
+                    TransientVerificationStore.email_address == email,
+                    TransientVerificationStore.reason == TransientReason.password_change_confirmation,
+                )
             )
-        
-        query = await session.execute(
-            select(User)
-            .where(User.email == email)
         )
-        user: User = query.scalars().first()
-        if not user:
-            if DEBUG:
-                logger.info(f'**User not found')
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Subject for Password/Pin change not found!"
-            )
+        transient_instance: TransientVerificationStore = transient_query.scalars().first()
+        now = datetime.now(timezone.utc)
+
+        exc = HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Password/PIN change request expired. Confirm code again.",
+        )
+        if not transient_instance:
+            raise exc
         
-        if password:
-            hash = get_password_hash(password)
-            user.password_hash = hash
-        elif pin:
-            hash = get_password_hash(pin)
-            user.pin_hash = hash
+        try:
+            if (transient_instance.expiry <= now):
+                raise exc
 
-        session.add(user)
+            # check that password ain't same
+            pin_or_password_data = {'password':password,'pin':pin}
+            result = await authenticate_user(session, email, **pin_or_password_data)
+            if result:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="New Password/Pin can't be same as old."
+                )
+            
+            query = await session.execute(
+                select(User)
+                .where(User.email == email)
+            )
+            user: User = query.scalars().first()
+            if not user:
+                if DEBUG:
+                    logger.info(f'**User not found')
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Subject for Password/Pin change not found!"
+                )
+            
+            if password:
+                hash = get_password_hash(password)
+                user.password_hash = hash
+            elif pin:
+                hash = get_password_hash(pin)
+                user.pin_hash = hash
 
-        return {"detail": "Password/PIN updated successfully."}
-    finally: 
-        await session.delete(transient_instance)
-        await session.commit()
+            session.add(user)
+
+            return {"detail": "Password/PIN updated successfully."}
+        finally: 
+            await session.delete(transient_instance)
+            await session.commit()
+    except Exception as e:
+        log_error(f'{e}')
+        raise e
 
 
 def verify_pin_or_password(user: User, data: PinOrPasswordSchema):

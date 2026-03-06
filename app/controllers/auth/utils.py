@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status, Request
 
 from .schemas import EmailEtCodeSchema
+from ppgc_backend.config.settings import logger
+from ppgc_backend.log_config.logger_config import log_error
 from ppgc_backend.app.models import TransientVerificationStore
 from ppgc_backend.app.enums import EmailManagementReasonChoice as TransientReason
 
@@ -23,36 +25,40 @@ def confirm_email_verification_code(reason: TransientReason = None):
             *args,
             **kwargs
         ):
-            filters = [
-                TransientVerificationStore.email_address == data.email,
-                TransientVerificationStore.email_code == data.code,
-            ]
+            try:
+                filters = [
+                    TransientVerificationStore.email_address == data.email,
+                    TransientVerificationStore.email_code == data.code,
+                ]
 
-            # If reason is provided, enforce it
-            if reason is not None:
-                filters.append(TransientVerificationStore.reason == reason)
+                # If reason is provided, enforce it
+                if reason is not None:
+                    filters.append(TransientVerificationStore.reason == reason)
 
 
-            record = (await session.execute(
-                select(TransientVerificationStore).where(and_(*filters))
-            )).scalars().first()
+                record = (await session.execute(
+                    select(TransientVerificationStore).where(and_(*filters))
+                )).scalars().first()
 
-            if not record:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Code incorrect or expired."
-                )
+                if not record:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Code incorrect or expired."
+                    )
 
-            # Expiry check (recommended)
-            now = datetime.now(timezone.utc)
-            if record.email_code_expiry_time and record.email_code_expiry_time <= now:
-                raise HTTPException(
-                    status_code=status.HTTP_410_GONE,
-                    detail="Code expired."
-                )
-            await session.delete(record)
-            await session.commit()
-            return await func(data, session, *args, **kwargs)
+                # Expiry check (recommended)
+                now = datetime.now(timezone.utc)
+                if record.email_code_expiry_time and record.email_code_expiry_time <= now:
+                    raise HTTPException(
+                        status_code=status.HTTP_410_GONE,
+                        detail="Code expired."
+                    )
+                await session.delete(record)
+                await session.commit()
+                return await func(data, session, *args, **kwargs)
+            except Exception as e:
+                log_error(f"{e}")
+                raise e
         return wrapper
     return outer_wrapper
 

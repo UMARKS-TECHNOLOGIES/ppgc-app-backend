@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 # Load environment variables from a .env file if present
 load_dotenv()
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)\
 
 # Base directory of the project
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -56,3 +57,14 @@ REAL_TEST_EMAIL = os.getenv('REAL_TEST_EMAIL')
 
 REFRESH_SECRET_KEY = os.getenv('REFRESH_SECRET_KEY')
 REFRESH_TOKEN_EXPIRY_MINUTES=43200 # 30 days in minutes
+
+# Remita / external payment gateway configuration
+REMITA_BASE_URL = os.getenv('REMITA_BASE_URL', 'https://remitademo.net')
+REMITA_API_KEY = os.getenv('REMITA_API_KEY')
+REMITA_MERCHANT_ID = os.getenv('REMITA_MERCHANT_ID')
+REMITA_SERVICE_TYPE_ID = os.getenv('REMITA_SERVICE_TYPE_ID')
+# Optional override endpoints (paths appended to REMITA_BASE_URL)
+REMITA_RRR_PATH = os.getenv('REMITA_RRR_PATH', '/remita/exapp/api/v1/send/api/echannel/rrr')
+REMITA_VERIFY_PATH = os.getenv('REMITA_VERIFY_PATH', '/remita/exapp/api/v1/get/api/transaction/verify')
+# Whether to include an Authorization: Bearer <API_KEY> header. If false, client will send API key in payload.
+REMITA_USE_BEARER = os.getenv('REMITA_USE_BEARER', 'true').lower() in ('1','true','yes')
