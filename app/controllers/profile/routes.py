@@ -14,7 +14,7 @@ from ppgc_backend.app.controllers.actors.models import User
 from ppgc_backend.app.controllers.auth.schemas import PasscodeSchema
 from ppgc_backend.app.controllers.auth.services import decode_user_from_token
 
-router = APIRouter(prefix='/profile')
+router = APIRouter(prefix='/profile',  tags=['profile'])
 
 
 @router.get("/", response_model=UserSettingsResponseSchema, status_code=200)

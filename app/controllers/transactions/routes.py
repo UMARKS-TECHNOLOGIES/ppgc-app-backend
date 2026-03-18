@@ -16,7 +16,7 @@ from ppgc_backend.app.controllers.actors.models import User
 from ppgc_backend.app.controllers.auth.services import decode_user_from_token
 
 
-router = APIRouter(prefix='/trx')
+router = APIRouter(prefix='/trx', tags=['Transactions'])
 
 @router.post('/deposit/')
 async def deposit_endpoint(

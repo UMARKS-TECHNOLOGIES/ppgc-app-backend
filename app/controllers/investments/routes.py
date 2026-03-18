@@ -16,7 +16,7 @@ from .schemas import InvestmentCreate, InvestmentResp, PatchInvestmentStatus
 from ppgc_backend.app.controllers.auth.services import decode_user_from_token
 
 
-router = APIRouter(prefix='/investments')
+router = APIRouter(prefix='/investments', tags=["investments"])
 
 
 @router.post('/create/', response_model = InvestmentResp)

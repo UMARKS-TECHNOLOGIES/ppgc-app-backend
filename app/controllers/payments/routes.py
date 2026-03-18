@@ -5,15 +5,15 @@ from sqlalchemy.future import select
 from .schemas import PaymentRequestSchema, WebhookPayload
 from .services import handle_create_rrr, verify_rrr
 from ppgc_backend.app.database import get_db
+from ppgc_backend.app.initiator import logger
 from ppgc_backend.app.controllers.auth.services import decode_user_from_token
 from ppgc_backend.app.controllers.transactions.services import create_transaction
 from ppgc_backend.app.controllers.transactions.enums import TRXType
 from ppgc_backend.app.controllers.transactions.models import Transaction
-from ppgc_backend.app.initiator import logger
 from ppgc_backend.app.controllers.activity_logging.services import log_activity
 
 
-router = APIRouter(prefix='/payments')
+router = APIRouter(prefix='/payments', tags=['Payments'])
 
 
 @router.post('/rrr/', status_code=status.HTTP_201_CREATED)
@@ -22,7 +22,27 @@ async def create_rrr_endpoint(
     db: AsyncSession = Depends(get_db),
     user = Depends(decode_user_from_token),
 ):
-    return await handle_create_rrr(db, data, user)
+    remita_resp = await handle_create_rrr(data)
+
+    rrr = (
+        remita_resp.get('RRR')
+        or remita_resp.get('rrr')
+        or (remita_resp.get('data') or {}).get('RRR')
+        or (remita_resp.get('data') or {}).get('rrr')
+    )
+
+    trx_payload = {
+        'amount': data.amount,
+        'name': data.name,
+        'trx_type': TRXType.deposit,
+        'trx_id': rrr or '',
+    }
+
+    trx = await create_transaction(db, trx_payload, user.id)
+
+    await log_activity(db, user, action='create_rrr', description=str(remita_resp))
+
+    return {'remita': remita_resp, 'transaction': {'id': trx.id, 'trx_id': trx.trx_id}}
 
 
 @router.post('/webhook/', status_code=status.HTTP_200_OK)

@@ -21,7 +21,7 @@ from ppgc_backend.app.controllers.actors.models import User
 from ppgc_backend.app.controllers.auth.schemas import PasscodeSchema
 from ppgc_backend.app.controllers.auth.services import decode_user_from_token
 
-router = APIRouter(prefix='/settings')
+router = APIRouter(prefix='/settings', tags=["settings"])
 
 
 @router.post("/update-passcode/")

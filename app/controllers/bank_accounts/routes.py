@@ -14,7 +14,7 @@ from ppgc_backend.app.controllers.actors.models import User
 from ppgc_backend.app.controllers.utils import require_owner_dep
 from ppgc_backend.app.controllers.auth.services import decode_user_from_token
 
-router = APIRouter(prefix="/bank-accounts")
+router = APIRouter(prefix="/bank-accounts", tags=['bank-accounts'])
 
 
 @router.post('/', response_model=BankAccResp, status_code=201)

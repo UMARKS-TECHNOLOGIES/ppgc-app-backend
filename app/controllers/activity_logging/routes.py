@@ -14,7 +14,7 @@ from .services import (
     get_activity_statistics,
 )
 
-router = APIRouter(prefix='/activity-logs')
+router = APIRouter(prefix='/activity-logs', tags=['activity-logs'])
 
 
 @router.get('/my-activities/', response_model=ActivityLogListResponseSchema)
