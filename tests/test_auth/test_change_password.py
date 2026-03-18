@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ppgc_backend.config.settings import REAL_TEST_EMAIL
 from ppgc_backend.app.enums import EmailManagementReasonChoice
 from ppgc_backend.app.models import TransientVerificationStore
-from ppgc_backend.tests.auth.test_user_creation import create_test_user
+from ppgc_backend.tests.test_auth.test_user_creation import create_test_user
 
 @pytest.mark.asyncio
 async def test_change_pin_or_password(client_fixture):

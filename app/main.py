@@ -31,6 +31,7 @@ from ppgc_backend.app.controllers.auth.services import initialize_admin
 from ppgc_backend.app.controllers.savings import routes as savings_routes
 from ppgc_backend.app.controllers.bookings import routes as bookings_routes
 from ppgc_backend.app.controllers.settings import routes as settings_routes
+from ppgc_backend.app.controllers.media_mgt import routes as media_mgt_routes
 from ppgc_backend.app.controllers.inspection import routes as inspection_routes
 from ppgc_backend.app.controllers.properties import routes as properties_routes
 from ppgc_backend.app.controllers.investments import routes as investments_routes
@@ -155,10 +156,11 @@ app.include_router(hotel_routes.router)
 app.include_router(savings_routes.router)
 app.include_router(bookings_routes.router)
 app.include_router(settings_routes.router)
+app.include_router(payments_routes.router)
+app.include_router(media_mgt_routes.router)
 app.include_router(inspection_routes.router)
 app.include_router(properties_routes.router)
 app.include_router(transaction_routes.router)
-app.include_router(payments_routes.router)
 app.include_router(investments_routes.router)
 app.include_router(bank_accounts_routes.router)
 app.include_router(two_factor_auth_routes.router)

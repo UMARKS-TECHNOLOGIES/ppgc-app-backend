@@ -68,3 +68,6 @@ REMITA_RRR_PATH = os.getenv('REMITA_RRR_PATH', '/remita/exapp/api/v1/send/api/ec
 REMITA_VERIFY_PATH = os.getenv('REMITA_VERIFY_PATH', '/remita/exapp/api/v1/get/api/transaction/verify')
 # Whether to include an Authorization: Bearer <API_KEY> header. If false, client will send API key in payload.
 REMITA_USE_BEARER = os.getenv('REMITA_USE_BEARER', 'true').lower() in ('1','true','yes')
+
+CLOUDINARY_API_KEY = os.getenv('CLOUDINARY_API_KEY') 
+CLOUDINARY_API_SECRET = os.getenv('CLOUDINARY_API_SECRET')

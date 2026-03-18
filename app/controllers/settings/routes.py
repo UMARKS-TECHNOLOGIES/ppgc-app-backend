@@ -37,7 +37,7 @@ async def update_passcode_endpoint(
     )
 
 
-@router.post("/recovery-email/request/", response_model=RecoveryEmailResponseSchema, status_code=200)
+@router.post("/recovery-email/change-authorization/", response_model=RecoveryEmailResponseSchema, status_code=200)
 async def request_recovery_email_endpoint(
     data: RecoveryEmailRequestSchema = Body(...),
     db: AsyncSession = Depends(get_db),
@@ -53,7 +53,7 @@ async def request_recovery_email_endpoint(
     return await request_recovery_email_change(db,user,data.recovery_email)
 
 
-@router.post("/recovery-email/confirm/", response_model=RecoveryEmailResponseSchema, status_code=200)
+@router.post("/recovery-email/change-confirmation/", response_model=RecoveryEmailResponseSchema, status_code=200)
 async def confirm_recovery_email_endpoint(
     data: RecoveryEmailVerificationSchema = Body(...),
     db: AsyncSession = Depends(get_db),

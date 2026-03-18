@@ -4,6 +4,14 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ppgc_backend.config import settings
+from ppgc_backend.config.settings import (
+    REMITA_API_KEY,
+    REMITA_BASE_URL,
+    REMITA_RRR_PATH,
+    REMITA_USE_BEARER,
+    REMITA_MERCHANT_ID,
+    REMITA_SERVICE_TYPE_ID,
+)
 from .schemas import PaymentRequestSchema
 from ppgc_backend.app.initiator import logger
 from ppgc_backend.app.controllers.actors.models import User
@@ -11,22 +19,22 @@ from ppgc_backend.app.controllers.transactions.enums import TRXType
 from ppgc_backend.app.controllers.activity_logging.services import log_activity
 from ppgc_backend.app.controllers.transactions.services import create_transaction
 
-async def create_rrr(db: AsyncSession, data: PaymentRequestSchema, user: User, amount: float, name: str, email: str | None = None, phone: str | None = None) -> dict[str, Any]:
-    url = f"{settings.REMITA_BASE_URL.rstrip('/')}{settings.REMITA_RRR_PATH}"
+async def handle_create_rrr(db: AsyncSession, data: PaymentRequestSchema, user: User) -> dict[str, Any]:
+    url = f"{REMITA_BASE_URL.rstrip('/')}{REMITA_RRR_PATH}"
     payload = {
         "amount": data.amount,
         "payerName": data.name,
         "payerEmail": data.email,
         "payerPhone": data.phone,
     }
-    if settings.REMITA_MERCHANT_ID:
-        payload.update({"merchantId": settings.REMITA_MERCHANT_ID})
-    if settings.REMITA_SERVICE_TYPE_ID:
-        payload.update({"serviceTypeId": settings.REMITA_SERVICE_TYPE_ID})
+    if REMITA_MERCHANT_ID:
+        payload.update({"merchantId": REMITA_MERCHANT_ID})
+    if REMITA_SERVICE_TYPE_ID:
+        payload.update({"serviceTypeId": REMITA_SERVICE_TYPE_ID})
 
     headers = {"Content-Type": "application/json"}
-    if settings.REMITA_API_KEY and settings.REMITA_USE_BEARER:
-        headers["Authorization"] = f"Bearer {settings.REMITA_API_KEY}"
+    if REMITA_API_KEY and REMITA_USE_BEARER:
+        headers["Authorization"] = f"Bearer {REMITA_API_KEY}"
 
     remita_resp = None
     async with httpx.AsyncClient(timeout=15) as client:
